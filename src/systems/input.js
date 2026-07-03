@@ -12,6 +12,8 @@
 
 import * as THREE from 'three';
 import { normalize } from '../core/math2d.js';
+import { rightStickAxes, padAimFromAxes } from '../core/gamepadMap.js';
+import { CONTROLLER } from '../config.js';
 import { hud } from '../ui/hud.js';
 
 const DEADZONE = 0.15;
@@ -51,6 +53,11 @@ export class Input {
     this._padPrev = {};
     this.pad = { moveX: 0, moveZ: 0, aimX: 0, aimZ: 0, active: false, aiming: false, shoot: false };
     this._padAim = { x: 0, z: -1 }; // right-stick aim persists when the stick is idle
+    // right-stick auto-detection (gamepadMap.js): observed motion range per axis
+    // (tracked only while the move stick is idle) picks the aim axes for non-standard pads.
+    this._axisLo = [];
+    this._axisHi = [];
+    this._rightAxes = { ix: 2, iy: 3 };
 
     this._raycaster = new THREE.Raycaster();
     this._ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -99,7 +106,13 @@ export class Input {
       this._padIndex = e.gamepad.index;
       hud.toast('🎮  Controller connected', true);
     });
-    addEventListener('gamepaddisconnected', () => (this._padIndex = null));
+    addEventListener('gamepaddisconnected', () => {
+      this._padIndex = null;
+      // forget the learned axis mapping so a swapped controller re-detects cleanly
+      this._axisLo = [];
+      this._axisHi = [];
+      this._rightAxes = { ix: 2, iy: 3 };
+    });
   }
 
   /** poll the gamepad once per tick; compute aim/shoot + button edges */
@@ -108,18 +121,36 @@ export class Input {
     const gp = this._padIndex != null ? pads[this._padIndex] : null;
 
     if (gp) {
-      const mx = dz(gp.axes[0] || 0);
-      const mz = dz(gp.axes[1] || 0);
-      const ax = dz(gp.axes[2] || 0);
-      const az = dz(gp.axes[3] || 0);
+      const axes = gp.axes || [];
+      const mx = dz(axes[0] || 0);
+      const mz = dz(axes[1] || 0);
+
+      // Learn which axes are the right stick: track each axis's motion RANGE, but
+      // only while the move stick is idle so movement can't be mistaken for aim.
+      // (Range ignores resting-at-±1 triggers, which never move.)
+      if (mx === 0 && mz === 0) {
+        for (let i = 2; i < axes.length; i++) {
+          const v = axes[i] || 0;
+          if (this._axisLo[i] === undefined || v < this._axisLo[i]) this._axisLo[i] = v;
+          if (this._axisHi[i] === undefined || v > this._axisHi[i]) this._axisHi[i] = v;
+        }
+      }
+      const peaks = [];
+      for (let i = 2; i < axes.length; i++)
+        peaks[i] = (this._axisHi[i] ?? 0) - (this._axisLo[i] ?? 0);
+      this._rightAxes = rightStickAxes(gp, { peaks, remap: CONTROLLER.remap });
+
+      const ax = dz(axes[this._rightAxes.ix] ?? 0);
+      const az = dz(axes[this._rightAxes.iy] ?? 0);
+      const a = padAimFromAxes(ax, az);
       this.pad.moveX = mx;
       this.pad.moveZ = mz;
       this.pad.active = mx !== 0 || mz !== 0;
-      this.pad.aiming = ax !== 0 || az !== 0;
-      this.pad.aimX = ax;
-      this.pad.aimZ = az;
+      this.pad.aiming = a.x !== 0 || a.z !== 0;
+      this.pad.aimX = a.x;
+      this.pad.aimZ = a.z;
       if (this.pad.aiming) {
-        const n = normalize(ax, az);
+        const n = normalize(a.x, a.z);
         this._padAim.x = n.x;
         this._padAim.z = n.z;
       }

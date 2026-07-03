@@ -541,6 +541,16 @@ export const SETTINGS = {
   reducedEffects: false, // post-FX off (raw render) — accessibility / low-end (toggle in panel)
 };
 
+// ---- controller mapping (src/systems/input.js + src/core/gamepadMap.js) ----
+// The right (aim) stick is auto-detected: W3C "standard" pads use axes[2]/[3];
+// non-standard pads are resolved from observed stick motion. `remap` is the
+// deterministic escape hatch — if a specific pad still mis-aims, add an entry
+// keyed by any substring of its `gamepad.id`, mapping to [aimX, aimY] axis
+// indices. Example: { 'My Weird Pad': [3, 4] }.
+export const CONTROLLER = {
+  remap: {}, // { idSubstring: [aimXAxisIndex, aimYAxisIndex] }
+};
+
 // ---- graphics / post-processing (ADR-0025 — src/core/postfx.js, docs/GRAPHICS.md) ----
 // The look: a dark world where the THREATS GLOW. The post-FX pass adds bloom to the
 // bright emissive bits (bullets, enemies, pickups, the door) + ACES tone mapping so
