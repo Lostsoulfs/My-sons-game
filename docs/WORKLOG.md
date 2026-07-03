@@ -15,6 +15,40 @@ interim home for the dedicated org-wide logging repo noted in [`BACKLOG.md`](BAC
 
 ---
 
+## 2026-07-02 — Doc tidy-up: STATUS refreshed to v0.8.16, ADR index 0028/0029, PR #64 backlog items closed (no version change)
+
+Scott's laptop was wiped and rebuilt (Node 24, gh CLI, git identity restored); this session
+re-synced the local checkout, merged the three PRs waiting since the last session, and swept up
+the doc staleness that had built up since STATUS.md was last touched (2026-06-22, at v0.8.3).
+
+**What was merged:**
+
+- **#66** — full backstory structured, narrative system designed, 1950s tech table (docs-only).
+- **#67** — dependabot npm dev-deps: `globals` 17.6.0→17.7.0, `playwright` 1.61.0→1.61.1,
+  `vite` 8.0.16→8.1.0.
+- **#68** — dependabot GitHub Actions: `actions/checkout` v6.0.3→v7.0.0 (major; verified no
+  breaking-change exposure — this repo has no `pull_request_target`/`workflow_run` triggers),
+  `actions/setup-python` v6.2.0→v6.3.0.
+
+**What was tidied:**
+
+- `STATUS.md` — version bumped v0.8.3 → v0.8.16, ADR count 28 → 29, era references corrected
+  from "1940s" to the locked "1950s" canon (PR #65/#66), and eight missing "most recent work"
+  bullets added covering everything shipped between v0.8.4 and v0.8.16.
+- `docs/adr/README.md` — added the missing index rows for ADR-0028 (drop-and-offer system) and
+  ADR-0029 (meta-progression-and-save).
+- `docs/BACKLOG.md` — checked off the two survivor-spawn bugs fixed by PR #64.
+- `docs/ROADMAP.md` — the Graphics "Atmospheric overhaul" item was stale (shipped as ADR-0026);
+  split into a DONE line + the genuinely remaining scope (depth-of-field, volumetric fog, PBR on
+  more than just the floor).
+
+**Verification:** `npm ci` + `npm test` re-run clean after the dependency bumps landed —
+44 files, 303/303 tests passing, 0 vulnerabilities.
+
+**Deviations:** None.
+
+---
+
 ## 2026-06-24 — Story lore session 2: full backstory structured, narrative system planned, 1950s tech table (no version change)
 
 Continuation of the lore session from PR #65. Era was already locked (1950s); this session went deeper

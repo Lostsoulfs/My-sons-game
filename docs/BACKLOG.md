@@ -134,13 +134,13 @@ decisions in [`docs/adr/`](adr/).
 
 ## Playtest follow-ups (2026-06-22, from Scott — fix later)
 
-- [ ] **Survivor-spawned enemies don't move** until they touch the player. The "bad read" survivor
-      outcome (`game._resolveSurvivor` → `SPAWN_ENEMIES` → `new Enemy(scene, 'chaser', …)`) spawns
-      chasers that read as inert until contact. Check target acquisition / `Enemy.update` for enemies
-      added mid-room (vs. the spawner's room-load path).
-- [ ] **Survivor-spawned enemies spawn on top of you.** They're placed at `npc.x ± 2, npc.z ± 2`
-      (right where you're interacting with the survivor). Spawn them at a distance from the nearest
-      player instead (a min-distance ring / a different location).
+- [x] ~~**Survivor-spawned enemies don't move** until they touch the player.~~ **FIXED (PR #64,
+      2026-06-24).** The `ROOM_CLEAR` branch now runs a guarded enemy-update + dead-filter +
+      defeat-check block, so enemies spawned mid-room via `game._resolveSurvivor` actively chase
+      instead of reading as inert.
+- [x] ~~**Survivor-spawned enemies spawn on top of you.**~~ **FIXED (PR #64, 2026-06-24).** They
+      now spawn on a 3–4.5-unit ring at a random angle from the NPC instead of at `npc.x ± 2, npc.z
+± 2`; tunables live in `FEEL.survivorSpawnRing` (`config.js`).
 - [ ] **No movement OR firing while a "screen" is up.** Scott can still move + shoot while a clear
       screen shows. The B9b `OFFER` modal already fully pauses input; this is about the `ROOM_CLEAR`
       walk-to-door phase (currently movement-enabled by design so you can reach the door) and/or a

@@ -33,3 +33,5 @@ below).
 | [0025](0025-postprocessing-pipeline.md)            | Post-processing pipeline (bloom + ACES) via postprocessing | Accepted |
 | [0026](0026-atmospheric-rendering.md)              | Atmospheric rendering (IBL, shadows, PBR floor, AO)        | Accepted |
 | [0027](0027-difficulty-and-scaling.md)             | "Twice as hard" master difficulty knob + fair weights      | Accepted |
+| [0028](0028-drop-and-offer-system.md)              | Room-clear upgrade OFFER screen (drops → pick-1-of-3)      | Accepted |
+| [0029](0029-meta-progression-and-save.md)          | Meta-progression: Echoes + versioned localStorage save     | Accepted |

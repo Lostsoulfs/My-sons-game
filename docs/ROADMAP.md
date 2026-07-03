@@ -18,10 +18,12 @@ neighbours:
 
 ## Graphics
 
-- [ ] **Atmospheric overhaul** — in-game IBL/environment lighting, PBR textures + normal maps,
-      depth-of-field, richer/volumetric fog. _Deferred:_ the current "tasteful polish" pass (bloom +
-      ACES) gets most of the visual win at low risk; deep atmosphere risks readability + perf and
-      wants Scott's eye. _Trigger:_ after the post-FX pipeline ships and we want more mood.
+- [x] ~~**Atmospheric overhaul**~~ — **DONE (ADR-0026, v0.8.0–v0.8.3).** IBL/environment
+      lighting + richer fog, real-time shadows, a wet-asphalt PBR floor, and N8AO ambient occlusion
+      all shipped. Remaining scope, still open:
+- [ ] **Depth-of-field + volumetric fog + broader PBR** — the atmosphere items ADR-0026 didn't
+      cover (PBR is floor-only today; no DoF or volumetric fog). _Deferred:_ same reasoning as
+      before — risks readability + perf, wants Scott's eye. _Trigger:_ a dedicated mood pass.
 - [ ] **WebGPU renderer** — Three's WebGPU path is maturing. _Deferred:_ no concrete need; WebGL2 is
       plenty for our scene. _Trigger:_ a feature that needs compute/instancing WebGPU unlocks.
 - [ ] **Per-mesh hit-flash tint** — brief emissive/color pop on a hurt entity's mesh. _Deferred from

@@ -3,7 +3,7 @@ lifecycle: growing
 frozen: false
 visibility: public
 maturity: active-development
-updated: 2026-06-22
+updated: 2026-07-02
 ---
 
 # Status — Lostsouls
@@ -24,11 +24,38 @@ session) lives in [`docs/WORKLOG.md`](docs/WORKLOG.md); the detailed running his
 - **frozen:** `false` — no freeze declared.
 - **visibility:** `public`.
 
-## Current state (v0.8.3)
+## Current state (v0.8.16)
 
 A browser 3D bullet-hell shooter (Three.js + Vite + Express): solo with an AI ally and local
 two-player co-op (keyboard/mouse/gamepad). Most recent work:
 
+- **Story canon locked: 1950s + full backstory (#65, #66)** — era moved to mid-to-late 1950s
+  (WW2 happened, then a people-vs-government civil war); world history, the experiment-gone-wrong
+  rift, and the "Echo" energy origin are canon. Full backstory structured with a floor-by-floor
+  reveal map, a three-ending concept, and an implicit/environmental storytelling approach
+  (`docs/STORY.md`); an `inkjs` choice engine is a deferred future ADR.
+- **FPS instrumentation + safe dial-backs (v0.8.16)** — A/B perf tooling
+  (`docs/plans/0001-fps-instrumentation.md`) found post-FX + shadows off take an RTX 5060 from
+  30→165 fps; shipped the safe wins now (shadow map 2048→1024, `pixelRatioCap` 2→1.5), with a
+  data-gated post-FX cut PR still to come.
+- **Bug fixes + test hardening (#63, #64)** — hostile-survivor enemies now move during
+  `ROOM_CLEAR` and spawn on a safe-distance ring instead of on top of the player; ported a
+  statistical RNG battery, config invariants, and metamorphic tests from the testing kits
+  (303 tests total).
+- **B10 — meta-progression: Echoes + Resonance (v0.8.15, ADR-0029, #58)** — a versioned
+  `localStorage` save, an Echoes currency, and a Resonance screen for permanent upgrades, gated
+  behind a first full win.
+- **B9a/B9b — room-clear OFFER screen (v0.8.13–v0.8.14, ADR-0028, #56, #57)** — a pick-1-of-3
+  upgrade offer on room clear, backed by an item registry + offer engine + scaling.
+- **B5–B8 — difficulty, patterns, knockback, drop rarity (v0.8.9–v0.8.12, ADR-0027, #52–#55)** —
+  a "twice as hard" master difficulty knob with fair weights, a parametric bullet-pattern library
+  with homing extraction, knockback impulse + exponential decay, and drop rarity tiers with hard
+  pity.
+- **B1–B4 — feel & kid-fairness foundation (v0.8.4–v0.8.8, #47–#51)** — feel-math foundation,
+  trauma shake + screen-flash, camera spring-follow, and kid-fairness telegraph/gap math with a
+  CI guard rail; plus a Codacy-injection `.gitignore` defense.
+- **Housekeeping (#59, #60)** — `docs/OPERATIONS.md` + an auto-format pre-commit hook, Node pin
+  alignment, and a `.sonarcloud.properties` fix so exclusions actually apply.
 - **Atmospheric overhaul COMPLETE (ADR-0026)** — the four-phase visual upgrade is done: in-game
   image-based lighting with richer fog (A), **real-time shadows** (B), a **wet-asphalt PBR floor** (C),
   and **N8AO ambient occlusion** (D, v0.8.3). The dark world now has real depth — image-based fill,
@@ -102,7 +129,7 @@ two-player co-op (keyboard/mouse/gamepad). Most recent work:
   [`audio.js`](src/systems/audio.js) facade. The procedural **SFX synth stays**; the synth drone is
   now the **fallback** so a missing track is never silent. Tracks are **plug-and-play**
   (`config.MUSIC` id→file map; stream + lazy-load so big files don't bloat runtime). This run's
-  identity: "**1940s × Doom**" (doom-jazz), distinct genre per stage. **Engine ships now; track files
+  identity: "**1950s × Doom**" (doom-jazz), distinct genre per stage. **Engine ships now; track files
   (curated stages + AI boss themes) come next.** This ADR also records Scott **superseding the
   zero-dependency posture** (free libs allowed if they fit the other rules).
 - **Maintenance pass (v0.6.5)** — fixed the carried-forward **AnimModel mixer leak**: animated
@@ -129,10 +156,11 @@ two-player co-op (keyboard/mouse/gamepad). Most recent work:
   closures were refactored onto it (behavior-identical), and the **human** boss was **de-samey'd**
   from a spider-clone ring into an aimed **panic-spray cone**; telegraphs read clearer. Also fixed
   the **orbital-blade-freezes-on-death** residual and corrected the **story canon** (nameless place,
-  a **civil war** not WW2, the 1940s as a tech/era anchor — no anachronistic weapons). First of the
+  a post-WW2 **civil war** (people vs. government), the 1950s as the era anchor — no anachronistic
+  weapons). First of the
   research-led "Foundation & Feel" pass (scaling math + accessibility follow in later stages).
 - **Expansion 6 Stage 6 (polish)** — wrote the **story bible** ([`docs/STORY.md`](docs/STORY.md):
-  Caden's 1940s post-war ruined city, the experiment-gone-wrong rift, temporary survivors,
+  Caden's mid-to-late-1950s civil-war-torn ruined city, the experiment-gone-wrong rift, temporary survivors,
   civil-war-era arms × rift-tech "living weapons", **no zombies**), then a **scale pass**
   (ADR-0020): arenas ~2.5×
   bigger (40×30 → 64×48) with the **camera sized to fit** the whole room and a documented **size
@@ -164,7 +192,7 @@ two-player co-op (keyboard/mouse/gamepad). Most recent work:
 - **Cross-repo hardening** — secret/PII pre-commit + CI scanner (public-repo BLOCK policy),
   ESLint 10, pinned actions.
 
-28 ADRs (0001–0028). Verification: probability/proof tests, coverage gate, production smoke +
+29 ADRs (0001–0029). Verification: probability/proof tests, coverage gate, production smoke +
 browser smoke, OpenSSF scorecard, dependency review, control audit.
 
 ## Scope (unchanged)
