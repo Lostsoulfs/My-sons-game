@@ -153,6 +153,16 @@ export function itemById(id) {
   return BY_ID.get(id);
 }
 
+// weapon config key (config.WEAPONS) -> rarity tier, for FX intensity + future scoring.
+const WEAPON_TIER = new Map(
+  ITEMS.filter((it) => it.category === 'weapon').map((it) => [it.effect.weapon, it.tier]),
+);
+
+/** rarity tier for a weapon config key (guns not in the registry — e.g. 'pistol' — are 'common'). */
+export function weaponTier(weaponKey) {
+  return WEAPON_TIER.get(weaponKey) ?? 'common';
+}
+
 /** group items into a {key: [items]} map, pre-seeding every key in `keys` (so lookups never miss). */
 function groupByKey(items, keyOf, keys) {
   const m = {};

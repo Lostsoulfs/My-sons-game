@@ -15,9 +15,11 @@ import {
   DAMAGE_REDUCTION,
   OFFERS,
   GUARD,
+  GRAPHICS,
 } from '../config.js';
 import { statBonus } from '../core/scaling.js';
-import { itemById } from '../core/items.js';
+import { itemById, weaponTier } from '../core/items.js';
+import { deriveWeaponFx, rarityIntensity } from '../core/weaponFxDerive.js';
 import { resolveIncoming } from '../core/defense.js';
 import { makeCharacter } from './characterMesh.js';
 import { slideOutOfWalls, clampToArena } from '../systems/collision.js';
@@ -108,6 +110,9 @@ export class Player {
     this.weaponDef = WEAPONS[this.weapon] || WEAPONS.pistol;
     this.weaponName = this.weaponDef.name;
     this._charge = 0; // drop any in-progress charge when the weapon changes
+    // weapon FX: flavor derived from the gun; intensity scaled by its rarity tier
+    this._weaponFx = deriveWeaponFx(this.weaponDef);
+    this._fxIntensity = rarityIntensity(weaponTier(this.weapon), GRAPHICS.vfx?.rarityScale);
     if (!this.weaponDef.orbital) this._hideOrbital(); // stash orbital blades
   }
 
@@ -213,6 +218,7 @@ export class Player {
   _fireWeapon(game, aim) {
     const w = this.weaponDef;
     const m = this._mods; // weapon-mod offers (B9b): stack onto the gun's base behavior flags
+    game.weaponfx?.muzzle(this.x, this.z, aim, this._weaponFx, this._fxIntensity);
     const dirs = spreadDirs(aim.x, aim.z, w.pellets, w.spreadDeg);
     for (const d of dirs) {
       game.bullets.spawnPlayer(this.x, this.z, d.x, d.z, {
@@ -227,6 +233,8 @@ export class Player {
         life: w.life,
         scale: w.scale,
         color: w.color,
+        fx: this._weaponFx,
+        fxIntensity: this._fxIntensity,
       });
     }
   }
@@ -257,6 +265,7 @@ export class Player {
         if (e.dead || (orb.cd.get(e) || 0) > 0) continue;
         if (circleVsCircle(bx, bz, 0.5, e.x, e.z, e.radius)) {
           e.hurt(def.damage * this.damageMul, game, normalize(e.x - this.x, e.z - this.z)); // shove away (B7)
+          game.weaponfx?.impact(bx, bz, 'enemy', this._weaponFx, this._fxIntensity);
           orb.cd.set(e, def.hitCooldown);
         }
       }
@@ -310,6 +319,7 @@ export class Player {
     if (aim.x === 0 && aim.z === 0) return;
     const lerp = (a, b) => a + (b - a) * f;
     const m = this._mods; // weapon-mod offers stack onto the charged shot too
+    game.weaponfx?.muzzle(this.x, this.z, aim, this._weaponFx, this._fxIntensity * (0.8 + 0.6 * f));
     game.bullets.spawnPlayer(this.x, this.z, aim.x, aim.z, {
       damage: lerp(c.minDamage, c.maxDamage) * this.damageMul,
       speed: lerp(c.minSpeed, c.maxSpeed) * (1 + m.bulletSpeed),
@@ -319,6 +329,8 @@ export class Player {
       explodeRadius: m.explodeRadius,
       scale: lerp(1, c.maxScale),
       color: c.color,
+      fx: this._weaponFx,
+      fxIntensity: this._fxIntensity,
     });
     this.fireTimer = this.weaponDef.cooldown * this.fireRateMul; // cap charge cadence
     game.juice.addTrauma(game.JUICE.traumaOnShoot + game.JUICE.traumaChargeBonus * f);

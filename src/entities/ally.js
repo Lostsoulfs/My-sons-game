@@ -13,6 +13,7 @@ import { makeCharacter } from './characterMesh.js';
 import { slideOutOfWalls, clampToArena } from '../systems/collision.js';
 import { normalize, dist, spreadDirs } from '../core/math2d.js';
 import { allyShare } from '../core/scaling.js';
+import { deriveWeaponFx } from '../core/weaponFxDerive.js';
 
 export class Ally {
   constructor(scene) {
@@ -90,6 +91,8 @@ export class Ally {
   _fire(game, aim, p, share) {
     const w = this.weaponDef;
     const dmgMul = 1 + allyShare((p?.damageMul ?? 1) - 1, share);
+    const fx = deriveWeaponFx(w);
+    game.weaponfx?.muzzle(this.x, this.z, aim, fx, 1);
     const dirs = spreadDirs(aim.x, aim.z, w.pellets ?? 1, w.spreadDeg ?? 0);
     for (const dir of dirs) {
       game.bullets.spawnPlayer(this.x, this.z, dir.x, dir.z, {
@@ -104,6 +107,8 @@ export class Ally {
         life: w.life,
         scale: w.scale,
         color: w.color,
+        fx,
+        fxIntensity: 1,
       });
     }
     const rateBonus = allyShare(1 - (p?.fireRateMul ?? 1), share);

@@ -566,9 +566,18 @@ export const GRAPHICS = {
     offset: 0.3, // where the darkening starts (higher = smaller bright center)
   },
   vfx: {
-    impactSparks: true, // a small spark burst when a bullet hits a wall (reuses the particle pool)
+    enabled: true, // master switch for weapon FX (muzzle / trail / impact) — off = plain dots
+    impactSparks: true, // a small spark burst when a bullet hits (reuses the particle pool)
     sparkCount: 4,
     sparkColor: 0xffd27a, // warm spark; bloom makes it pop
+    // FX read BOTH axes: FLAVOR (ballistic tracer vs energy bolt/beam, derived from the
+    // weapon color/flags in core/weaponFxDerive.js) and RARITY (this scalar cranks the juice).
+    rarityScale: { common: 1.0, rare: 1.25, epic: 1.6, ultra: 2.1 },
+    // pooled per-bullet tracer segments (systems/weaponfx.js). `interval` throttles emission;
+    // `pool` caps memory — when it saturates (a hose), trails just get shorter (graceful).
+    trail: { pool: 160, life: 0.09, interval: 0.016, width: 0.16, length: 0.9 },
+    muzzle: { sparks: 3, color: 0xffe0a0 }, // barrel flash (warm; energy guns tint to the bullet)
+    impact: { sparks: 5, scorchColor: 0x88ffcc }, // enemy-hit spark / energy scorch
   },
   // real-time shadow maps (ADR-0026 Phase B — src/core/scene.js). ONE shadow-casting
   // light (the warm key); a tight orthographic frustum fit to the ARENA. Bullets, eyes,
