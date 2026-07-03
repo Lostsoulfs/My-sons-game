@@ -40,6 +40,18 @@ export const WEAPON_TYPES = [
   'BOUNCER',
   'CHARGE',
   'ORBITAL',
+  // 1950s matrix — ground-droppable tiers only (ULTRA minigun/davycrockett are offer-only)
+  'UZI',
+  'CARBINE',
+  'LASERPISTOL',
+  'GARAND',
+  'THOMPSON',
+  'PPSH',
+  'BAR',
+  'BROWNING',
+  'MASER',
+  'RAYGUN',
+  'PLASMA',
 ];
 
 const LOOK = {
@@ -55,6 +67,18 @@ const LOOK = {
   BOUNCER: { color: 0x9b7bff, label: 'BOUNCER!', weapon: true },
   CHARGE: { color: 0xffd23a, label: 'CHARGE CANNON!', weapon: true },
   ORBITAL: { color: 0x66ffd0, label: 'ORBITAL BLADE!', weapon: true },
+  // 1950s matrix — ground-droppable guns (energy guns get their bright bullet color)
+  UZI: { color: 0xc8c8b0, label: 'GREASE GUN!', weapon: true },
+  CARBINE: { color: 0xd8c090, label: 'M1 CARBINE!', weapon: true },
+  LASERPISTOL: { color: 0x66ff9e, label: 'LASER PISTOL!', weapon: true },
+  GARAND: { color: 0xe8d8a0, label: 'M1 GARAND!', weapon: true },
+  THOMPSON: { color: 0xd0b070, label: 'THOMPSON!', weapon: true },
+  PPSH: { color: 0xd0a860, label: 'PPSh-41!', weapon: true },
+  BAR: { color: 0xc0b080, label: 'BAR!', weapon: true },
+  BROWNING: { color: 0xd8c080, label: 'BROWNING M1919!', weapon: true },
+  MASER: { color: 0x8ad0ff, label: 'MASER BEAM!', weapon: true },
+  RAYGUN: { color: 0x9effc0, label: 'ATOMIC RAY GUN!', weapon: true },
+  PLASMA: { color: 0x7effd0, label: 'PLASMA LAUNCHER!', weapon: true },
 };
 
 // Drop SELECTION (rarity tiers + hard pity) now lives in the pure, THREE-free core/drops.js so it

@@ -20,6 +20,7 @@ import {
 import { statBonus } from '../core/scaling.js';
 import { itemById, weaponTier } from '../core/items.js';
 import { deriveWeaponFx, rarityIntensity } from '../core/weaponFxDerive.js';
+import { spinUpCooldown } from '../core/spinUp.js';
 import { resolveIncoming } from '../core/defense.js';
 import { makeCharacter } from './characterMesh.js';
 import { slideOutOfWalls, clampToArena } from '../systems/collision.js';
@@ -110,6 +111,7 @@ export class Player {
     this.weaponDef = WEAPONS[this.weapon] || WEAPONS.pistol;
     this.weaponName = this.weaponDef.name;
     this._charge = 0; // drop any in-progress charge when the weapon changes
+    this._spin = 0; // reset minigun spin-up on weapon change
     // weapon FX: flavor derived from the gun; intensity scaled by its rarity tier
     this._weaponFx = deriveWeaponFx(this.weaponDef);
     this._fxIntensity = rarityIntensity(weaponTier(this.weapon), GRAPHICS.vfx?.rarityScale);
@@ -184,12 +186,18 @@ export class Player {
       this._updateCharge(dt, game, aim);
     } else {
       this.fireTimer -= dt;
-      if (input.shoot(this.device) && this.fireTimer <= 0 && (aim.x !== 0 || aim.z !== 0)) {
+      const shooting = input.shoot(this.device) && (aim.x !== 0 || aim.z !== 0);
+      // minigun spin-up: the fire cadence winds up while the trigger is held, resets on release
+      if (this.weaponDef.spinUp) this._spin = shooting ? (this._spin || 0) + dt : 0;
+      if (shooting && this.fireTimer <= 0) {
         this._fireWeapon(game, aim);
-        this.fireTimer = this.weaponDef.cooldown * this.fireRateMul;
+        const cd = this.weaponDef.spinUp
+          ? spinUpCooldown(this._spin, this.weaponDef.spinUp)
+          : this.weaponDef.cooldown;
+        this.fireTimer = cd * this.fireRateMul;
         game.juice.addTrauma(game.JUICE.traumaOnShoot);
         audio.play(SHOOT_SFX[this.weapon] || 'shoot');
-        if (this.device !== 'kb' && this.weaponDef.cooldown >= 0.15) input.rumble(0.12, 0.08, 50);
+        if (this.device !== 'kb' && cd >= 0.15) input.rumble(0.12, 0.08, 50);
       }
     }
 
