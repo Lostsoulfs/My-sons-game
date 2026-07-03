@@ -246,6 +246,19 @@ export const PROGRESSION = {
         eye: 0x9bff6a, // green eye-socket glow
       },
     },
+    {
+      // Final floor — the government's seat. The Enforcer war-machine makes the last
+      // stand (people vs. government). Cold gunmetal arena with a red-alert glow.
+      name: 'The Iron Capitol',
+      boss: 'enforcer',
+      palette: {
+        body: 0x4a4e57, // gunmetal steel
+        emissive: 0x20242b, // cold shadow
+        leg: 0x33363d, // dark iron
+        legEmissive: 0x1a1c22,
+        eye: 0xff3b30, // red-alert authoritarian eye
+      },
+    },
   ],
 };
 
@@ -338,6 +351,38 @@ export const BOSS = {
 
     // P3 — spiderling spawns (count gated by HP in spiderlingTarget())
     spawnInterval: 2.4, // how often it tops up toward the target count
+  },
+
+  // ---- the Enforcer (government war-machine) — the new FINAL boss ----
+  // A slow, heavy Atomic-Age war-machine (the story's people-vs-government seed). Three
+  // ATTACK PATTERNS: P1 tracking cannon burst · P2 telegraphed sweeping gap-ring barrage ·
+  // P3 periodic suppressive strafe. Fair: a 500ms telegraph (the eye flares) + a rotating
+  // 3-slot dodge lane in the ring. Menacing, not unfair.
+  enforcer: {
+    hp: 120, // base HP (scaled by floor diff) — the toughest boss, as the finale
+    radius: 3.0,
+    speed: 2.8, // slow, deliberate tank
+    contactDamage: 1,
+    contactCooldown: 0.9,
+
+    // P1 — tracking chin cannon: a tight aimed burst
+    p1Interval: 1.4,
+    p1Burst: 3,
+    p1Spread: 6,
+    p1BulletSpeed: 15,
+
+    // P2 — telegraphed sweeping barrage: a rotating ring with a guaranteed dodge lane
+    p2Interval: 3.8,
+    telegraph: 0.5, // wind-up (the eye flares) = fair warning
+    ringBullets: 14, // base on this floor (scaled by floor diff in code)
+    ringBulletSpeed: 8, // slow enough to read + dodge
+    ringGap: 3, // guaranteed dodge lane (slots), walks around each volley
+
+    // P3 — suppressive strafe: a wide directional fan you sidestep
+    p3Interval: 2.6,
+    p3Count: 5,
+    p3SpreadRad: 0.8, // ~46° fan
+    p3BulletSpeed: 12,
   },
 
   // ---- the mushroom boss (Caden's pick) — Expansion 6 Stage 2 ----
@@ -1071,4 +1116,7 @@ export const MODELS = {
   cat: 'models/cat.glb', // Stage 3: animated CC0 beast — Whisker + kittens (cool)
   skeleton: 'models/skeleton.glb', // Stage 4: animated CC0 skeleton — Rattlebones + bonelings
   human: 'models/human.glb', // Stage 5: animated CC0 human — the Survivor + rallied survivors
+  // Final boss: drop a CC0 war-machine/robot GLB here (e.g. 'models/enforcer.glb') and the
+  // Enforcer swaps from its procedural mesh to the model automatically (loadAnimated in enforcer.js).
+  enforcer: null,
 };

@@ -5,11 +5,18 @@ import { floorInfo, roomsPerFloor } from '../src/core/progression.js';
 // Integrity check for the Stage 5 final floor lineup (pure config — no THREE).
 const PALETTE_KEYS = ['body', 'emissive', 'leg', 'legEmissive', 'eye'];
 
-describe('PROGRESSION.floors (Stage 5 final lineup)', () => {
+describe('PROGRESSION.floors (final lineup)', () => {
   const floors = PROGRESSION.floors;
 
-  it('is the tight 5-floor order: spider -> human -> mushroom -> duo -> skeleton', () => {
-    expect(floors.map((f) => f.boss)).toEqual(['spider', 'human', 'mushroom', 'duo', 'skeleton']);
+  it('is the 6-floor order: spider -> human -> mushroom -> duo -> skeleton -> enforcer', () => {
+    expect(floors.map((f) => f.boss)).toEqual([
+      'spider',
+      'human',
+      'mushroom',
+      'duo',
+      'skeleton',
+      'enforcer', // the government war-machine finale
+    ]);
   });
 
   it('every floor has a name and a full 5-key palette', () => {
