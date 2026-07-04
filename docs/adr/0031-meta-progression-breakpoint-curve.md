@@ -44,9 +44,9 @@ not mixed into any stack count:
      20+ becomes 4x, …). A one-time (non-compounding) toll would let the level right
      after a breakpoint cost LESS than the breakpoint itself — a discount where Scott
      wants a wall. Caught by a "strictly increasing" test before it shipped.
-2. **`config.js`** — `META_CURVE = { first: 0.005, small: 0.001, breakpoint: 0.01,
-every: 10, breakpointCostMul: 2 }`, shared by all percent nodes. Sharpness / Swiftness
-   / Rapid / Tough Hide switch from `{maxLevel: 2-3, cost: [...], effect:{perLevel}}` to
+2. **`config.js`** — `META_CURVE = { first: 0.005, small: 0.001, breakpoint: 0.01, every:
+10, breakpointCostMul: 2 }`, shared by all percent nodes. Sharpness / Swiftness /
+   Rapid / Tough Hide switch from `{maxLevel: 2-3, cost: [...], effect:{perLevel}}` to
    `{maxLevel: 10, costBase, costGrowth, effect:{curve:'percent'}}`. Vitality and Aegis
    (flat +1 heart / +1 guard per level) are **unchanged** — this ADR only touches the
    four stats Scott named ("damage fire rate ... etc").
@@ -59,12 +59,12 @@ every: 10, breakpointCostMul: 2 }`, shared by all percent nodes. Sharpness / Swi
    that feeds `statBonus`. `_up.speed`/`_up.damageReduction` no longer seed from baseline
    in `reset()` — the baseline is applied once, live, in `_recomputeUpgrades`.
 
-At level 10 the total permanent bonus is a deliberately small **+2.3%** (0.5 + 8×0.1 +
-
-1. — this is flavor and a long-haul reward, not a power fantasy; the in-run per-weapon
-   curve (up to +100% damage) is where a single run's power comes from. Maxing ONE node to
-   level 10 costs ~3.6-4k Echoes against a ~330-Echo/run post-beat income — roughly a
-   dozen runs, matching "not stackable in a matter of a few playthroughs."
+At level 10 the total permanent bonus is a deliberately small **+2.3%** total (0.5 +
+8×0.1 + 1, all percent) — this is flavor and a long-haul reward, not a power fantasy;
+the in-run per-weapon curve (up to +100% damage) is where a single run's power comes
+from. Maxing ONE node to level 10 costs ~3.6-4k Echoes against a ~330-Echo/run post-beat
+income — roughly a dozen runs, matching "not stackable in a matter of a few playthroughs."
+Live-verified at exactly these numbers (see PR).
 
 ## Consequences
 
