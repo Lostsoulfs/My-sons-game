@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { PROGRESSION } from '../src/config.js';
-import { floorInfo, roomsPerFloor } from '../src/core/progression.js';
+import { floorMeta } from '../src/core/progression.js';
 
 // Integrity check for the Stage 5 final floor lineup (pure config — no THREE).
 const PALETTE_KEYS = ['body', 'emissive', 'leg', 'legEmissive', 'eye'];
@@ -28,7 +28,7 @@ describe('PROGRESSION.floors (final lineup)', () => {
   });
 
   it('difficulty (from the DIFFICULTY curve) ramps up monotonically per floor', () => {
-    const diffs = floors.map((_, i) => floorInfo(i * roomsPerFloor()).diff);
+    const diffs = floors.map((_, i) => floorMeta(i).diff);
     for (let i = 1; i < diffs.length; i++) {
       expect(diffs[i]).toBeGreaterThanOrEqual(diffs[i - 1]);
     }
