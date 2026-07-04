@@ -16,7 +16,7 @@ import { rightStickAxes, padAimFromAxes } from '../core/gamepadMap.js';
 import { CONTROLLER } from '../config.js';
 import { hud } from '../ui/hud.js';
 
-const DEADZONE = 0.15;
+const DEADZONE = CONTROLLER.deadzone; // single source of truth lives in config.CONTROLLER
 const dz = (v) => (Math.abs(v) < DEADZONE ? 0 : v);
 
 /** is the event target a text field / menu control (so we shouldn't treat keys as game input)? */
@@ -138,7 +138,11 @@ export class Input {
       const peaks = [];
       for (let i = 2; i < axes.length; i++)
         peaks[i] = (this._axisHi[i] ?? 0) - (this._axisLo[i] ?? 0);
-      this._rightAxes = rightStickAxes(gp, { peaks, remap: CONTROLLER.remap });
+      this._rightAxes = rightStickAxes(gp, {
+        peaks,
+        remap: CONTROLLER.remap,
+        deadzone: CONTROLLER.deadzone,
+      });
 
       const ax = dz(axes[this._rightAxes.ix] ?? 0);
       const az = dz(axes[this._rightAxes.iy] ?? 0);

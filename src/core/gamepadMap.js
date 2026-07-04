@@ -10,6 +10,9 @@
 // per-id remap table as a deterministic escape hatch.
 // =====================================================================
 
+// Standalone default only, so this pure module stays self-contained for its unit
+// tests. The live game injects the shared value via opts.deadzone (config.CONTROLLER
+// .deadzone), so the tunable has ONE source of truth and can't drift from input.js.
 const DEADZONE = 0.15;
 
 /**

@@ -548,6 +548,8 @@ export const SETTINGS = {
 // keyed by any substring of its `gamepad.id`, mapping to [aimX, aimY] axis
 // indices. Example: { 'My Weird Pad': [3, 4] }.
 export const CONTROLLER = {
+  deadzone: 0.15, // shared stick deadzone — the single source of truth; input.js reads it
+  //                 and injects it into gamepadMap's aim-axis detection so the two can't drift.
   remap: {}, // { idSubstring: [aimXAxisIndex, aimYAxisIndex] }
 };
 
