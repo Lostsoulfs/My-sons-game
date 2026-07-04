@@ -88,6 +88,63 @@ export function marginalBonus(stacks, maxBonus, half) {
 }
 
 /**
+ * The bonus a SINGLE permanent (Resonance) level `n` contributes (PURE) — ADR-0031.
+ * Unlike statBonus (asymptotic, capped), this is a flat step curve with periodic
+ * BREAKPOINTS: the first level is a bigger taste, filler levels are small, and every
+ * `every`-th level jumps back up. Deliberately never caps — repeat breakpoint tiers
+ * (20, 30…) fall out of the same formula for free.
+ *
+ *   n === 1        -> cfg.first
+ *   n % every === 0 -> cfg.breakpoint
+ *   else            -> cfg.small
+ *
+ * @param {number} n the level being added (1-indexed; 1 = the first purchase)
+ * @param {{first:number, small:number, breakpoint:number, every:number}} cfg
+ * @returns {number} that level's own contribution (a fraction, e.g. 0.005 = +0.5%)
+ */
+export function metaLevelBonus(n, cfg) {
+  if (n <= 0) return 0;
+  if (n === 1) return cfg.first;
+  if (n % cfg.every === 0) return cfg.breakpoint;
+  return cfg.small;
+}
+
+/**
+ * Cumulative permanent (Resonance) bonus at a given level (PURE) — Σ metaLevelBonus(1..level).
+ * Slow and steep by design (Scott: perm upgrades must NOT fill in a few playthroughs) —
+ * this is the total % baked into `baselineStacks()`, applied on TOP of (not mixed into)
+ * the in-run diminishing-returns curve.
+ *
+ * @param {number} level how many levels of this node are purchased
+ * @param {{first:number, small:number, breakpoint:number, every:number}} cfg
+ * @returns {number} the total permanent bonus (a fraction, e.g. 0.023 = +2.3% at level 10)
+ */
+export function metaBreakpointBonus(level, cfg) {
+  let total = 0;
+  for (let n = 1; n <= level; n++) total += metaLevelBonus(n, cfg);
+  return total;
+}
+
+/**
+ * Echo cost to purchase permanent level `n` (PURE) — ADR-0031. Geometric growth per level
+ * (steep on purpose: Scott doesn't want these fillable in a few playthroughs), with an extra
+ * `breakpointMul` (e.g. 2x) crossed at breakpoint levels: "10 becomes a 1% perm upgrade with
+ * twice the cost." The toll COMPOUNDS forward (level 11 stays 2x, level 20 becomes 4x, …) —
+ * a one-time toll would let the very next level cost LESS than the breakpoint that preceded
+ * it, which would read as a discount instead of a wall.
+ *
+ * @param {number} n the level being purchased (1-indexed; 1 = the first purchase)
+ * @param {{base:number, growth:number, breakpointMul:number, every:number}} cfg
+ * @returns {number} the Echo cost, rounded (Echoes are integer-only)
+ */
+export function metaLevelCost(n, cfg) {
+  if (n <= 0) return Infinity;
+  const geo = cfg.base * Math.pow(cfg.growth, n - 1);
+  const toll = Math.pow(cfg.breakpointMul, Math.floor(n / cfg.every));
+  return Math.round(geo * toll);
+}
+
+/**
  * The AI ally's share of a player bonus (PURE). The ally makes no upgrade choices; it passively
  * receives a fraction of whatever the player has accrued so it stays useful without being overpowered
  * (B9: default share 0.2 → ally gets 20% of the player's bonus). `share` clamps to 0..1.

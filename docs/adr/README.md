@@ -36,3 +36,4 @@ below).
 | [0028](0028-drop-and-offer-system.md)              | Room-clear upgrade OFFER screen (drops → pick-1-of-3)       | Accepted |
 | [0029](0029-meta-progression-and-save.md)          | Meta-progression: Echoes + versioned localStorage save      | Accepted |
 | [0030](0030-weapon-economy-per-weapon-upgrades.md) | Weapon economy: per-weapon per-stat upgrades, two-dial luck | Proposed |
+| [0031](0031-meta-progression-breakpoint-curve.md)  | Resonance permanent-upgrade curve — breakpoints, not stacks | Proposed |

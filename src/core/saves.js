@@ -8,7 +8,8 @@
 //   stacks are all zero while gameBeaten === false.
 // =====================================================================
 
-import { SAVES, META_UPGRADES } from '../config.js';
+import { SAVES, META_UPGRADES, META_CURVE } from '../config.js';
+import { metaBreakpointBonus, metaLevelCost } from './scaling.js';
 
 const KEY = SAVES.key;
 
@@ -26,10 +27,20 @@ export function nodeById(id) {
   return META_UPGRADES.find((n) => n.id === id);
 }
 
-/** Cost (in Echoes) of buying the NEXT level of a node (current level → level+1). */
+/** Cost (in Echoes) of buying the NEXT level of a node (current level → level+1).
+ *  `percent` nodes (ADR-0031) compute the steep breakpoint-ramp cost; `perLevel`
+ *  (flat) nodes read the fixed cost array — unchanged from B10. */
 export function costOf(id, level) {
   const node = nodeById(id);
   if (!node || level < 0 || level >= node.maxLevel) return Infinity;
+  if (node.effect.curve === 'percent') {
+    return metaLevelCost(level + 1, {
+      base: node.costBase,
+      growth: node.costGrowth,
+      breakpointMul: META_CURVE.breakpointCostMul,
+      every: META_CURVE.every,
+    });
+  }
   return node.cost[level] ?? Infinity;
 }
 
@@ -57,9 +68,14 @@ export function purchase(save, id) {
 }
 
 /**
- * Returns { damage, fireRate, speed, damageReduction, hearts, guard } stacks
- * from purchased meta upgrades. ALL-ZERO unless save.gameBeaten (belt-and-suspenders
- * gate — the first playthrough is the pure base game with no permanent buffs).
+ * Returns { damage, fireRate, speed, damageReduction, hearts, guard } from purchased meta
+ * upgrades. ALL-ZERO unless save.gameBeaten (belt-and-suspenders gate — the first playthrough
+ * is the pure base game with no permanent buffs).
+ *
+ * `percent` nodes (ADR-0031: sharpness/swiftness/rapid/toughHide) return a standalone %
+ * bonus (metaBreakpointBonus) meant to be ADDED on top of the in-run stat curve, not folded
+ * into its stack count — see entities/player.js _recomputeUpgrades. `perLevel` (flat) nodes
+ * (vitality/aegis) are unchanged: a small integer stack per level.
  */
 export function baselineStacks(save) {
   const zero = { damage: 0, fireRate: 0, speed: 0, damageReduction: 0, hearts: 0, guard: 0 };
@@ -67,7 +83,11 @@ export function baselineStacks(save) {
   const result = { ...zero };
   for (const node of META_UPGRADES) {
     const level = save.upgrades[node.id] ?? 0;
-    if (level > 0) result[node.effect.stat] += node.effect.perLevel * level;
+    if (level <= 0) continue;
+    result[node.effect.stat] +=
+      node.effect.curve === 'percent'
+        ? metaBreakpointBonus(level, META_CURVE)
+        : node.effect.perLevel * level;
   }
   return result;
 }
