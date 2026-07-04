@@ -78,6 +78,10 @@ neighbours:
 - [ ] Optional: glTF compression (KTX2/Draco), `OffscreenCanvas` worker.
 - **Trigger:** sustained on-screen bullets approaching the pool ceiling, or frame budget past ~16 ms
   on a target device (watch the Stage-3 perf HUD).
+- **Caveat before trusting a low FPS number:** confirm the browser is on the **discrete GPU**, not
+  the integrated one / a software fallback (Task Manager GPU%, `chrome://gpu`). A near-0 GPU% + high
+  CPU reads as a game bottleneck but isn't one — the old "post-FX tanks FPS" figure was iGPU-measured
+  and overstated the cost (see `docs/LEARNINGS.md` 2026-07-03).
 
 ## Cross-repo / org
 

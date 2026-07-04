@@ -771,3 +771,21 @@ base*(1+growth)^i`. Removed the hand-set per-floor `diff` from `PROGRESSION.floo
 - **Pass baseline into the Player constructor, not read localStorage inside Player.** Player decoupled from storage = Player is unit-testable without mocking localStorage, and the baseline is computed once per run (not once per frame). Co-op players both get the same account baseline automatically.
 - **`normalizeSave` must be idempotent.** If `normalize(normalize(x))` differs from `normalize(x)`, something downstream double-normalizes and drifts. Test this explicitly — it caught a fractional echoes edge case where `Math.floor(Math.floor(12.9))` = 12 was fine but an `echoes: 12.1` → `12` → `12` was accidentally failing a string-coerce path.
 - **`migrate` returns the SAME object for v === 1 (reference equality).** `normalizeSave(migrate(parsed))` always runs, so `migrate` is a cheap guard that only kicks in on version mismatch — it shouldn't copy the object unnecessarily.
+
+## 2026-07-03 — perf red herring: Chrome was on the iGPU, not the dGPU
+
+- **The earlier FPS drops were mostly a wrong-GPU problem, not a game bottleneck.** On Scott's
+  laptop the GPU sat at ~0% while the CPU was pegged — Chrome was rendering on the **integrated**
+  GPU, not the discrete RTX 5060. Fix (on his side): Windows **Settings → System → Display →
+  Graphics** → add Chrome → **High performance**. (Also verify via Task Manager GPU% / `chrome://gpu`.)
+- **This recalibrates the old perf figure:** the "post-FX + shadows off = 30→165 fps" note was
+  **iGPU-measured**, so it OVERSTATED the cost of the effects. On the discrete card there's far more
+  headroom — so the deferred **data-gated post-FX-cut** task (ROADMAP / perf section) drops in
+  priority; it's a nice-to-have, not urgent. Don't let those numbers scare us off adding juice
+  (weapon FX, atmosphere).
+- **The right lever for genuinely weak hardware already exists:** the `reducedEffects` setting
+  (drops post-FX + the new weapon-FX layer to raw). That's where the low-end path lives; we don't
+  need to gut effects for everyone.
+- **Lesson:** before treating a browser FPS number as a game/engine bottleneck, confirm **which GPU
+  the browser is actually using**. Near-0 GPU% + high CPU = wrong adapter (or a software fallback),
+  not a rendering-cost problem — chasing it in the game code would've been wasted work.
