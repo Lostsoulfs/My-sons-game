@@ -166,4 +166,35 @@ describe('ADR-0030 weapon-aware gating', () => {
     expect(seenOnce).toBeLessThan(fresh);
     expect(seenLots).toBeLessThan(seenOnce);
   });
+
+  it('LUCK_UP leaves the pool once luck is at its cap (no dead card)', () => {
+    const rng = makeRng(8);
+    for (let i = 0; i < 2000; i++) {
+      const cards = generateOffer(rng, { luck: OFFERS.luck.maxStacks });
+      expect(cards.some((c) => c.id === 'LUCK_UP')).toBe(false);
+    }
+  });
+
+  it('negative luck clamps to 0 (identical to no luck for the same seed)', () => {
+    expect(generateOffer(makeRng(88), { luck: -5 })).toEqual(
+      generateOffer(makeRng(88), { luck: 0 }),
+    );
+  });
+
+  it('a MAXED weapon mod leaves the pool (no silent no-op picks)', () => {
+    const rng = makeRng(9);
+    for (let i = 0; i < 2000; i++) {
+      const cards = generateOffer(rng, { statCap: 9, weaponMods: { MOD_PIERCE: 9 } });
+      expect(cards.some((c) => c.id === 'MOD_PIERCE')).toBe(false);
+    }
+  });
+
+  it('the Orbital Blade never gets bullet-mod offers (it fires no bullets)', () => {
+    const rng = makeRng(10);
+    const modIds = ['MOD_PIERCE', 'MOD_BOUNCE', 'MOD_BULLET_SPEED', 'MOD_BLAST'];
+    for (let i = 0; i < 2000; i++) {
+      const cards = generateOffer(rng, { weaponOrbital: true });
+      expect(cards.some((c) => modIds.includes(c.id))).toBe(false);
+    }
+  });
 });

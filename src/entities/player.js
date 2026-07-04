@@ -126,14 +126,17 @@ export class Player {
 
   /** get-or-create the per-weapon upgrade pick-count entry for a gun key (ADR-0030). */
   _wUp(key = this.weapon) {
-    return (this._weaponUpgrades[key] ??= {
-      damage: 0,
-      fireRate: 0,
-      pierce: 0,
-      bounces: 0,
-      bulletSpeed: 0,
-      explodeRadius: 0,
-    });
+    if (!this._weaponUpgrades[key]) {
+      this._weaponUpgrades[key] = {
+        damage: 0,
+        fireRate: 0,
+        pierce: 0,
+        bounces: 0,
+        bulletSpeed: 0,
+        explodeRadius: 0,
+      };
+    }
+    return this._weaponUpgrades[key];
   }
 
   /** bump a per-weapon stat pick-count (damage/fireRate), capped, then recompute derived stats. */
@@ -161,7 +164,11 @@ export class Player {
       this.slotIndex = this.slots.length - 1;
     } else {
       const old = this.slots[this.slotIndex];
-      if (old !== type) delete this._weaponUpgrades[old]; // lose-on-replace (cycling KEEPS each gun's stack)
+      // lose-on-replace (cycling KEEPS each gun's stack) — but only wipe when NO other slot still
+      // holds this gun: duplicates are reachable (owned weapons are down-weighted in offers, not
+      // excluded) and two slots of the same gun share one upgrade entry.
+      const heldElsewhere = this.slots.some((s, i) => i !== this.slotIndex && s === old);
+      if (old !== type && !heldElsewhere) delete this._weaponUpgrades[old];
       this.slots[this.slotIndex] = type;
     }
     this._refreshWeapon();
@@ -299,9 +306,15 @@ export class Player {
       for (const e of game.enemies) {
         if (e.dead || (orb.cd.get(e) || 0) > 0) continue;
         if (circleVsCircle(bx, bz, 0.5, e.x, e.z, e.radius)) {
-          e.hurt(def.damage * this.damageMul, game, normalize(e.x - this.x, e.z - this.z)); // shove away (B7)
+          // global max-damage applies to blades too ("all weapons"); fire-rate speeds up the
+          // per-enemy hit tick so FIRE_RATE_UP is a live pick on the orbital (ADR-0030 review)
+          e.hurt(
+            def.damage * this.damageMul * this._globalDmgMul,
+            game,
+            normalize(e.x - this.x, e.z - this.z), // shove away (B7)
+          );
           game.weaponfx?.impact(bx, bz, 'enemy', this._weaponFx, this._fxIntensity);
-          orb.cd.set(e, def.hitCooldown);
+          orb.cd.set(e, def.hitCooldown * this.fireRateMul);
         }
       }
     }
@@ -488,11 +501,20 @@ export class Player {
         SPEED_UP: this._up.speed,
         DMG_REDUCT: this._up.damageReduction,
       },
-      // ADR-0030 weapon-aware gating: skip maxed stats + block explosive on explosive/fast guns
+      // ADR-0030 weapon-aware gating: skip maxed stats + block explosive on explosive/fast guns.
+      // weaponExplosive includes the gun's OWN blast picks so one MOD_BLAST stops further offers;
+      // weaponMods lets maxed mod cards drop out; weaponOrbital blocks bullet-mods on the blades.
       statCap: CAPS.upgradesPerStat,
       weaponStat: { DAMAGE_UP: w.damage, FIRE_RATE_UP: w.fireRate },
-      weaponExplosive: !!def.explosive,
+      weaponMods: {
+        MOD_PIERCE: w.pierce,
+        MOD_BOUNCE: w.bounces,
+        MOD_BULLET_SPEED: w.bulletSpeed,
+        MOD_BLAST: w.explodeRadius,
+      },
+      weaponExplosive: !!def.explosive || w.explodeRadius > 0,
       weaponFast: (def.cooldown ?? 1) <= OFFERS.fastWeaponCd,
+      weaponOrbital: !!def.orbital,
       ownedCount: this.slots.length,
       luck: this._up.luck, // positive dial (the engine clamps it)
       seenWeapons: this.offerSeenWeapons, // see-it-once weapon decay
