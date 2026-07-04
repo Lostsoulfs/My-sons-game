@@ -274,6 +274,7 @@ export const CAPS = {
   speedMul: 1.6, // hard ceiling on move speed (curve asymptote = +60%)
   maxWeaponSlots: 3, // carry up to 3 weapons
   slotUnlockBosses: [2, 10, 20], // a slot unlocks after these boss counts
+  upgradesPerStat: 9, // ADR-0030: per-weapon cap on EACH stat (damage/fireRate/each mod) — deep, not a freeform total
 };
 
 // ---- upgrade curves (diminishing returns — see core/scaling.js statBonus) ----
@@ -1118,6 +1119,7 @@ export const PICKUPS = {
   // DAMAGE_UP / FIRE_RATE_UP / SPEED_UP each add ONE stack; the stat is recomputed from the
   // diminishing-returns curve (UPGRADES + core/scaling.js), so there are no per-pickup step sizes.
   healAmount: 2, // hearts restored by a HEAL pickup (boss reward)
+  bossHealSpawn: { x: -2, z: 0 }, // where the guaranteed post-boss HEAL lands (ADR-0030 boss reward)
   // rare mob heart: a small chance any mob drops a +1 heart on death. Luck matters but skill
   // dominates — keep this low so healing is earned, not spammed (bosses still guarantee a HEAL).
   mobHeartAmount: 1, // hearts restored by a mob-dropped HEART
@@ -1146,6 +1148,19 @@ export const OFFERS = {
   // hard pity forces a rare+ at the cap (mirrors B8's drop pity, applied to the offer).
   softPity: { rareAfter: 2, epicAfter: 5 }, // common-streak rooms → forced floor tier for one card
   hardPity: { commonStreakMax: 4, minTier: 'rare' },
+  // ADR-0030 weapon-aware gating: guns at/under this cooldown are "fast" → the explosive-tips mod is
+  // withheld (explosive on a fast gun is degenerate); it's also withheld on already-explosive guns.
+  fastWeaponCd: 0.14,
+  // once you already hold more than one gun, weapon-category offers get this extra down-weight
+  // (invest in what you have — NEW weapons get rarer after the first pick).
+  extraWeaponDecay: 0.4,
+  // ADR-0030 LUCK (the positive dial): each stack multiplies the rare+ tier weights on the offer
+  // roll. HARD-CAPPED so luck biases but never guarantees. (The Curse/danger dial — negative luck
+  // spawning ambushes — ships with the connected-map ADR, where roaming spawns live.)
+  luck: { maxStacks: 9, tierWeightBonus: 0.12 },
+  // see-it-once (Isaac-style): every time a WEAPON is offered, its future offer weight is
+  // multiplied by this — offers narrow over a run instead of repeating the same guns.
+  seenWeaponDecay: 0.5,
 };
 
 // ---- B9: defensive upgrades (offered, not dropped) ----

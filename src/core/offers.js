@@ -33,32 +33,50 @@ export function pityFloorTier(commonStreak) {
   return floor;
 }
 
-/** roll a tier by weight, never below `minTier`, skipping empty tiers. */
-function rollTier(rng, minTier) {
+/** roll a tier by weight, never below `minTier`, skipping empty tiers. `luck` (ADR-0030, already
+ *  clamped by the caller) multiplies every rare+ tier's weight — biases up, never guarantees. */
+function rollTier(rng, minTier, luck = 0) {
   const minIdx = minTier ? Math.max(0, tierIndex(minTier)) : 0;
+  const luckMul = 1 + luck * OFFERS.luck.tierWeightBonus;
   const entries = TIERS.filter((t, i) => i >= minIdx && (itemsByTier[t]?.length ?? 0) > 0).map(
-    (t) => ({ value: t, weight: OFFERS.tierWeights[t] ?? 0 }),
+    (t) => ({ value: t, weight: (OFFERS.tierWeights[t] ?? 0) * (tierIndex(t) >= 1 ? luckMul : 1) }),
   );
   return weightedChoice(rng, entries);
 }
 
-/** anti-repeat pick weight for one item: down-weight recently-offered items + already-owned weapons. */
-function itemWeight(it, baseWeight, recent, owned) {
+/** anti-repeat pick weight for one item: down-weight recently-offered items, already-owned
+ *  weapons, 2nd+ weapons (extra decay), and previously-SEEN weapons (see-it-once, ADR-0030). */
+function itemWeight(it, baseWeight, { recent, owned, weaponDecay = 1, seenWeapons }) {
   let w = baseWeight;
   if (recent.has(it.id)) w *= OFFERS.recentDecay;
-  if (it.category === 'weapon' && owned.has(it.id)) w *= OFFERS.ownedWeaponDecay;
-  return w;
+  if (it.category !== 'weapon') return w;
+  if (owned.has(it.id)) w *= OFFERS.ownedWeaponDecay;
+  w *= weaponDecay;
+  const seen = seenWeapons?.[it.id] ?? 0; // each past offer halves future weight
+  return seen > 0 ? w * OFFERS.seenWeaponDecay ** seen : w;
 }
 
 /** build [{value, weight}] candidates across the given tier pools, optionally excluding a category. */
-function candidateEntries({ pools, spanning, chosen, recent, owned, avoidCat }) {
+function candidateEntries({
+  pools,
+  spanning,
+  chosen,
+  recent,
+  owned,
+  avoidCat,
+  blocked,
+  weaponDecay = 1,
+  seenWeapons,
+}) {
   const entries = [];
+  const decays = { recent, owned, weaponDecay, seenWeapons };
   for (const t of pools) {
     const tierW = spanning ? Math.max(OFFERS.tierWeights[t] ?? 0, 0.0001) : 1; // span → weight by rarity
     for (const it of itemsByTier[t] ?? []) {
       if (chosen.has(it.id)) continue;
+      if (blocked?.has(it.id)) continue; // ADR-0030: maxed stats + gated mods are out of the pool
       if (avoidCat && it.category === avoidCat) continue;
-      entries.push({ value: it, weight: itemWeight(it, tierW, recent, owned) });
+      entries.push({ value: it, weight: itemWeight(it, tierW, decays) });
     }
   }
   return entries;
@@ -69,9 +87,12 @@ function candidateEntries({ pools, spanning, chosen, recent, owned, avoidCat }) 
  * tiers (the variety card, so it can always reach another category). `avoidCat` is relaxed only if it
  * would otherwise empty the pool.
  */
-function pickItem(rng, { tier = null, chosen, recent, owned, avoidCat = null }) {
+function pickItem(
+  rng,
+  { tier = null, chosen, recent, owned, avoidCat = null, blocked, weaponDecay, seenWeapons },
+) {
   const pools = tier ? [tier] : TIERS;
-  const opts = { pools, spanning: !tier, chosen, recent, owned };
+  const opts = { pools, spanning: !tier, chosen, recent, owned, blocked, weaponDecay, seenWeapons };
   let entries = candidateEntries({ ...opts, avoidCat });
   if (!entries.length) entries = candidateEntries({ ...opts, avoidCat: null });
   return weightedChoice(rng, entries);
@@ -84,16 +105,20 @@ function overflowCategory(catCount) {
 }
 
 /** draw one card's item: variety-aware, with the pity floor applied to the first card. */
-function drawCard(rng, { index, floor, chosen, catCount, recent, owned }) {
+function drawCard(
+  rng,
+  { index, floor, chosen, catCount, recent, owned, blocked, weaponDecay, seenWeapons, luck },
+) {
   const avoidCat = overflowCategory(catCount);
+  const gate = { blocked, weaponDecay, seenWeapons };
   let item;
   if (avoidCat) {
-    item = pickItem(rng, { chosen, recent, owned, avoidCat }); // span tiers to reach another category
+    item = pickItem(rng, { chosen, recent, owned, avoidCat, ...gate }); // span tiers to reach another category
   } else {
-    const tier = rollTier(rng, index === 0 ? floor : null) ?? rollTier(rng, null);
-    item = tier ? pickItem(rng, { tier, chosen, recent, owned }) : null;
+    const tier = rollTier(rng, index === 0 ? floor : null, luck) ?? rollTier(rng, null, luck);
+    item = tier ? pickItem(rng, { tier, chosen, recent, owned, ...gate }) : null;
   }
-  return item ?? pickItem(rng, { chosen, recent, owned }); // last-ditch: any not-chosen item
+  return item ?? pickItem(rng, { chosen, recent, owned, ...gate }); // last-ditch: any not-chosen item
 }
 
 /**
@@ -105,17 +130,63 @@ function drawCard(rng, { index, floor, chosen, catCount, recent, owned }) {
  *   marginal "+X%" blurb); commonStreak = dry-streak of commons taken (drives pity).
  * @returns {Array<{id:string, name:string, category:string, tier:string, blurb:string}>}
  */
+/**
+ * ADR-0030 weapon-aware gating (PURE) — all opt-in via ctx; absent fields ⇒ no gating (back-compat):
+ *   • drop a stat/mod card once the HELD gun has maxed it (statCap / weaponMods),
+ *   • withhold explosive tips on already-explosive (incl. modded) or fast-firing guns,
+ *   • withhold ALL bullet-mods on the Orbital Blade (it fires no bullets — dead picks),
+ *   • drop LUCK_UP once luck is at its cap (dead card otherwise),
+ *   • down-weight weapon offers once you already carry more than one gun.
+ * LUCK is clamped here ONCE (0..maxStacks) so nothing downstream can exceed the cap or go negative.
+ */
+function buildGates(ctx) {
+  const blocked = new Set();
+  const cap = ctx.statCap ?? Infinity;
+  const ws = ctx.weaponStat ?? {};
+  if ((ws.DAMAGE_UP ?? 0) >= cap) blocked.add('DAMAGE_UP');
+  if ((ws.FIRE_RATE_UP ?? 0) >= cap) blocked.add('FIRE_RATE_UP');
+  for (const [id, picks] of Object.entries(ctx.weaponMods ?? {})) {
+    if (picks >= cap) blocked.add(id);
+  }
+  if (ctx.weaponExplosive || ctx.weaponFast) blocked.add('MOD_BLAST');
+  if (ctx.weaponOrbital) {
+    for (const id of ['MOD_PIERCE', 'MOD_BOUNCE', 'MOD_BULLET_SPEED', 'MOD_BLAST']) blocked.add(id);
+  }
+  const luck = Math.max(0, Math.min(ctx.luck ?? 0, OFFERS.luck.maxStacks));
+  if (luck >= OFFERS.luck.maxStacks) blocked.add('LUCK_UP');
+  return {
+    blocked,
+    luck,
+    weaponDecay: (ctx.ownedCount ?? 0) > 1 ? (OFFERS.extraWeaponDecay ?? 1) : 1,
+    seenWeapons: ctx.seenWeapons ?? null, // id -> times offered (see-it-once decay)
+  };
+}
+
 export function generateOffer(rng, ctx = {}) {
   const owned = ctx.owned instanceof Set ? ctx.owned : new Set(ctx.owned ?? []);
   const recent = ctx.recent instanceof Set ? ctx.recent : new Set(ctx.recent ?? []);
   const stacksOf = ctx.stacks ?? {};
-  const floor = pityFloorTier(ctx.commonStreak ?? 0);
+  let floor = pityFloorTier(ctx.commonStreak ?? 0);
+  // boss clears guarantee at least a 'rare' floor card (ADR-0030 boss-tier reward)
+  if (ctx.bossTier && (!floor || tierIndex(floor) < tierIndex('rare'))) floor = 'rare';
+  const { blocked, luck, weaponDecay, seenWeapons } = buildGates(ctx);
 
   const chosen = new Set();
   const catCount = {};
   const cards = [];
   for (let i = 0; i < OFFERS.cardCount; i++) {
-    const item = drawCard(rng, { index: i, floor, chosen, catCount, recent, owned });
+    const item = drawCard(rng, {
+      index: i,
+      floor,
+      chosen,
+      catCount,
+      recent,
+      owned,
+      blocked,
+      weaponDecay,
+      seenWeapons,
+      luck,
+    });
     if (!item) break; // registry exhausted (won't happen at the current size)
     chosen.add(item.id);
     catCount[item.category] = (catCount[item.category] ?? 0) + 1;

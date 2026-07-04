@@ -101,3 +101,100 @@ describe('anti-repeat down-weights recent items and owned weapons', () => {
     expect(owned).toBeLessThan(fresh);
   });
 });
+
+// ADR-0030 — the offer generator is weapon-aware (all opt-in via ctx). These lock the gating.
+describe('ADR-0030 weapon-aware gating', () => {
+  const has = (id, ctx, seed, N = 4000) => {
+    const rng = makeRng(seed);
+    let n = 0;
+    for (let i = 0; i < N; i++) if (generateOffer(rng, ctx).some((c) => c.id === id)) n++;
+    return n;
+  };
+
+  it('never offers a stat the HELD weapon has already maxed', () => {
+    const rng = makeRng(5);
+    for (let i = 0; i < 2000; i++) {
+      const cards = generateOffer(rng, { statCap: 9, weaponStat: { DAMAGE_UP: 9 } });
+      expect(cards.some((c) => c.id === 'DAMAGE_UP')).toBe(false);
+    }
+  });
+
+  it('withholds explosive tips on an already-explosive OR fast-firing gun', () => {
+    const rng = makeRng(6);
+    for (let i = 0; i < 1500; i++) {
+      expect(generateOffer(rng, { weaponExplosive: true }).some((c) => c.id === 'MOD_BLAST')).toBe(
+        false,
+      );
+      expect(generateOffer(rng, { weaponFast: true }).some((c) => c.id === 'MOD_BLAST')).toBe(
+        false,
+      );
+    }
+  });
+
+  it('a boss-tier offer guarantees the first card is rare or better', () => {
+    for (let seed = 0; seed < 60; seed++) {
+      const cards = generateOffer(makeRng(seed), { bossTier: true });
+      expect(tierIdx(cards[0].tier)).toBeGreaterThanOrEqual(tierIdx('rare'));
+    }
+  });
+
+  it('down-weights NEW weapon offers once you already hold more than one gun', () => {
+    const one = has('SHOTGUN', { ownedCount: 1 }, 300);
+    const many = has('SHOTGUN', { ownedCount: 2 }, 300);
+    expect(many).toBeLessThan(one);
+  });
+
+  it('LUCK biases the tier roll up: fewer commons at max luck', () => {
+    const commons = (luck, seed) => {
+      const rng = makeRng(seed);
+      let n = 0;
+      for (let i = 0; i < 4000; i++) if (generateOffer(rng, { luck })[0].tier === 'common') n++;
+      return n;
+    };
+    expect(commons(OFFERS.luck.maxStacks, 400)).toBeLessThan(commons(0, 400));
+  });
+
+  it('LUCK is hard-capped: stacks past maxStacks change nothing (same seed, same cards)', () => {
+    const run = (luck) => generateOffer(makeRng(77), { luck });
+    expect(run(OFFERS.luck.maxStacks)).toEqual(run(999));
+  });
+
+  it('see-it-once: a weapon offered before shows up less and less', () => {
+    const fresh = has('SHOTGUN', {}, 500);
+    const seenOnce = has('SHOTGUN', { seenWeapons: { SHOTGUN: 1 } }, 500);
+    const seenLots = has('SHOTGUN', { seenWeapons: { SHOTGUN: 4 } }, 500);
+    expect(seenOnce).toBeLessThan(fresh);
+    expect(seenLots).toBeLessThan(seenOnce);
+  });
+
+  it('LUCK_UP leaves the pool once luck is at its cap (no dead card)', () => {
+    const rng = makeRng(8);
+    for (let i = 0; i < 2000; i++) {
+      const cards = generateOffer(rng, { luck: OFFERS.luck.maxStacks });
+      expect(cards.some((c) => c.id === 'LUCK_UP')).toBe(false);
+    }
+  });
+
+  it('negative luck clamps to 0 (identical to no luck for the same seed)', () => {
+    expect(generateOffer(makeRng(88), { luck: -5 })).toEqual(
+      generateOffer(makeRng(88), { luck: 0 }),
+    );
+  });
+
+  it('a MAXED weapon mod leaves the pool (no silent no-op picks)', () => {
+    const rng = makeRng(9);
+    for (let i = 0; i < 2000; i++) {
+      const cards = generateOffer(rng, { statCap: 9, weaponMods: { MOD_PIERCE: 9 } });
+      expect(cards.some((c) => c.id === 'MOD_PIERCE')).toBe(false);
+    }
+  });
+
+  it('the Orbital Blade never gets bullet-mod offers (it fires no bullets)', () => {
+    const rng = makeRng(10);
+    const modIds = ['MOD_PIERCE', 'MOD_BOUNCE', 'MOD_BULLET_SPEED', 'MOD_BLAST'];
+    for (let i = 0; i < 2000; i++) {
+      const cards = generateOffer(rng, { weaponOrbital: true });
+      expect(cards.some((c) => modIds.includes(c.id))).toBe(false);
+    }
+  });
+});

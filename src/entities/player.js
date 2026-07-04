@@ -16,6 +16,7 @@ import {
   OFFERS,
   GUARD,
   GRAPHICS,
+  WEAPON_MODS,
 } from '../config.js';
 import { statBonus } from '../core/scaling.js';
 import { itemById, weaponTier } from '../core/items.js';
@@ -76,21 +77,24 @@ export class Player {
     // upgrade STACKS — seeded from the permanent baseline (all-zero pre-beat), then each OFFER pick
     // (B9b) adds one; the derived stats come from the diminishing-returns curve (config.UPGRADES +
     // core/scaling.js) so power ramps over the run instead of capping early.
+    // GLOBAL body/run stats live here; per-weapon damage/fireRate/mods live in _weaponUpgrades (ADR-0030).
     this._up = {
-      damage: bl.damage,
-      fireRate: bl.fireRate,
       speed: bl.speed,
       damageReduction: bl.damageReduction,
+      luck: 0, // ADR-0030 positive dial — biases offer tiers up (capped in the offer engine)
     };
     this.guardCharges = bl.guard; // permanent guard charges from the meta-layer (added to offer charges)
     this._drCarry = 0; // banked fractional damage-reduction (core/defense.js carry accumulator)
-    this._mods = { pierce: 0, bounces: 0, bulletSpeed: 0, explodeRadius: 0 }; // weapon-mod offers
+    // per-weapon per-stat upgrade PICK-COUNTS (ADR-0030): key -> {damage,fireRate,pierce,bounces,
+    // bulletSpeed,explodeRadius}, each capped at CAPS.upgradesPerStat. Kept on cycle, wiped on replace.
+    this._weaponUpgrades = {};
+    this._globalDmgMul = 1; // rare global max-damage reward (multiplies final shot damage, uncapped)
     this.offerRecent = []; // recently-offered item ids → anti-repeat (OFFERS.recentMemory)
+    this.offerSeenWeapons = {}; // weapon id → times OFFERED this run (see-it-once decay, ADR-0030)
     this.offerCommonStreak = 0; // consecutive commons TAKEN → drives offer pity (per player)
-    this._recomputeUpgrades(); // sets speed / damageMul / fireRateMul / damageReductionFrac
     this.slots = ['pistol']; // weapons you carry; slotsUnlocked is the capacity
     this.slotIndex = 0;
-    this._refreshWeapon();
+    this._refreshWeapon(); // sets weapon + ensures its upgrade entry + recomputes derived stats
     this.mesh.position.set(x, 0, z);
     this.mesh.visible = true;
   }
@@ -116,6 +120,30 @@ export class Player {
     this._weaponFx = deriveWeaponFx(this.weaponDef);
     this._fxIntensity = rarityIntensity(weaponTier(this.weapon), GRAPHICS.vfx?.rarityScale);
     if (!this.weaponDef.orbital) this._hideOrbital(); // stash orbital blades
+    this._wUp(this.weapon); // ensure this gun has a per-weapon upgrade entry
+    this._recomputeUpgrades(); // derived damage/fire-rate follow the HELD gun (ADR-0030)
+  }
+
+  /** get-or-create the per-weapon upgrade pick-count entry for a gun key (ADR-0030). */
+  _wUp(key = this.weapon) {
+    if (!this._weaponUpgrades[key]) {
+      this._weaponUpgrades[key] = {
+        damage: 0,
+        fireRate: 0,
+        pierce: 0,
+        bounces: 0,
+        bulletSpeed: 0,
+        explodeRadius: 0,
+      };
+    }
+    return this._weaponUpgrades[key];
+  }
+
+  /** bump a per-weapon stat pick-count (damage/fireRate), capped, then recompute derived stats. */
+  _bumpWeaponStat(stat) {
+    const w = this._wUp();
+    if ((w[stat] ?? 0) < CAPS.upgradesPerStat) w[stat]++;
+    this._recomputeUpgrades();
   }
 
   /** capacity for carried weapons (bumped by the game as bosses fall) */
@@ -135,6 +163,12 @@ export class Player {
       this.slots.push(type);
       this.slotIndex = this.slots.length - 1;
     } else {
+      const old = this.slots[this.slotIndex];
+      // lose-on-replace (cycling KEEPS each gun's stack) — but only wipe when NO other slot still
+      // holds this gun: duplicates are reachable (owned weapons are down-weighted in offers, not
+      // excluded) and two slots of the same gun share one upgrade entry.
+      const heldElsewhere = this.slots.some((s, i) => i !== this.slotIndex && s === old);
+      if (old !== type && !heldElsewhere) delete this._weaponUpgrades[old];
       this.slots[this.slotIndex] = type;
     }
     this._refreshWeapon();
@@ -225,19 +259,19 @@ export class Player {
 
   _fireWeapon(game, aim) {
     const w = this.weaponDef;
-    const m = this._mods; // weapon-mod offers (B9b): stack onto the gun's base behavior flags
+    const m = this._wUp(); // per-weapon mod PICK-COUNTS (ADR-0030), scaled by the WEAPON_MODS amounts
     game.weaponfx?.muzzle(this.x, this.z, aim, this._weaponFx, this._fxIntensity);
     const dirs = spreadDirs(aim.x, aim.z, w.pellets, w.spreadDeg);
     for (const d of dirs) {
       game.bullets.spawnPlayer(this.x, this.z, d.x, d.z, {
-        damage: w.damage * this.damageMul, // base unchanged; multiplier is capped
-        speed: w.bulletSpeed * (1 + m.bulletSpeed), // + bullet-speed mod
+        damage: w.damage * this.damageMul * this._globalDmgMul, // capped mult × rare global max-damage
+        speed: w.bulletSpeed * (1 + m.bulletSpeed * WEAPON_MODS.bulletSpeed), // + bullet-speed mod
         explosive: w.explosive || m.explodeRadius > 0, // the blast mod makes any gun explode
-        explodeRadius: (w.explodeRadius ?? 0) + m.explodeRadius,
-        pierce: (w.pierce ?? 0) + m.pierce,
+        explodeRadius: (w.explodeRadius ?? 0) + m.explodeRadius * WEAPON_MODS.explodeRadius,
+        pierce: (w.pierce ?? 0) + m.pierce * WEAPON_MODS.pierce,
         homing: w.homing,
         turnRate: w.turnRate,
-        bounces: (w.bounces ?? 0) + m.bounces,
+        bounces: (w.bounces ?? 0) + m.bounces * WEAPON_MODS.bounces,
         life: w.life,
         scale: w.scale,
         color: w.color,
@@ -272,9 +306,15 @@ export class Player {
       for (const e of game.enemies) {
         if (e.dead || (orb.cd.get(e) || 0) > 0) continue;
         if (circleVsCircle(bx, bz, 0.5, e.x, e.z, e.radius)) {
-          e.hurt(def.damage * this.damageMul, game, normalize(e.x - this.x, e.z - this.z)); // shove away (B7)
+          // global max-damage applies to blades too ("all weapons"); fire-rate speeds up the
+          // per-enemy hit tick so FIRE_RATE_UP is a live pick on the orbital (ADR-0030 review)
+          e.hurt(
+            def.damage * this.damageMul * this._globalDmgMul,
+            game,
+            normalize(e.x - this.x, e.z - this.z), // shove away (B7)
+          );
           game.weaponfx?.impact(bx, bz, 'enemy', this._weaponFx, this._fxIntensity);
-          orb.cd.set(e, def.hitCooldown);
+          orb.cd.set(e, def.hitCooldown * this.fireRateMul);
         }
       }
     }
@@ -326,15 +366,15 @@ export class Player {
     this._charge = 0;
     if (aim.x === 0 && aim.z === 0) return;
     const lerp = (a, b) => a + (b - a) * f;
-    const m = this._mods; // weapon-mod offers stack onto the charged shot too
+    const m = this._wUp(); // per-weapon mod PICK-COUNTS (ADR-0030) stack onto the charged shot too
     game.weaponfx?.muzzle(this.x, this.z, aim, this._weaponFx, this._fxIntensity * (0.8 + 0.6 * f));
     game.bullets.spawnPlayer(this.x, this.z, aim.x, aim.z, {
-      damage: lerp(c.minDamage, c.maxDamage) * this.damageMul,
-      speed: lerp(c.minSpeed, c.maxSpeed) * (1 + m.bulletSpeed),
-      pierce: Math.round(lerp(0, c.pierce)) + m.pierce,
-      bounces: m.bounces,
+      damage: lerp(c.minDamage, c.maxDamage) * this.damageMul * this._globalDmgMul,
+      speed: lerp(c.minSpeed, c.maxSpeed) * (1 + m.bulletSpeed * WEAPON_MODS.bulletSpeed),
+      pierce: Math.round(lerp(0, c.pierce)) + m.pierce * WEAPON_MODS.pierce,
+      bounces: m.bounces * WEAPON_MODS.bounces,
       explosive: m.explodeRadius > 0,
-      explodeRadius: m.explodeRadius,
+      explodeRadius: m.explodeRadius * WEAPON_MODS.explodeRadius,
       scale: lerp(1, c.maxScale),
       color: c.color,
       fx: this._weaponFx,
@@ -393,22 +433,24 @@ export class Player {
    * diminishing-returns curve (config.UPGRADES). CAPS are a safety backstop only.
    */
   _recomputeUpgrades() {
-    const u = this._up;
+    const w = this._wUp(this.weapon || this.slots?.[this.slotIndex] || 'pistol');
+    const bl = this._baseline;
+    // damage + fire-rate come from the HELD gun's stacks + the global Echoes baseline (ADR-0030)
     this.damageMul = Math.min(
       CAPS.damageMul,
-      1 + statBonus(u.damage, UPGRADES.damage.maxBonus, UPGRADES.damage.half),
+      1 + statBonus(w.damage + bl.damage, UPGRADES.damage.maxBonus, UPGRADES.damage.half),
     );
     this.fireRateMul = Math.max(
       CAPS.fireRateMin,
-      1 - statBonus(u.fireRate, UPGRADES.fireRate.maxBonus, UPGRADES.fireRate.half),
+      1 - statBonus(w.fireRate + bl.fireRate, UPGRADES.fireRate.maxBonus, UPGRADES.fireRate.half),
     );
+    // move-speed + damage-reduction stay GLOBAL (they buff the body/run, not the gun)
     this.speed = Math.min(
       PLAYER.speed * CAPS.speedMul,
-      PLAYER.speed * (1 + statBonus(u.speed, UPGRADES.speed.maxBonus, UPGRADES.speed.half)),
+      PLAYER.speed * (1 + statBonus(this._up.speed, UPGRADES.speed.maxBonus, UPGRADES.speed.half)),
     );
-    // damage-reduction fraction (B9b) — consumed in hurt() via core/defense.js (carry model)
     this.damageReductionFrac = statBonus(
-      u.damageReduction,
+      this._up.damageReduction,
       DAMAGE_REDUCTION.maxBonus,
       DAMAGE_REDUCTION.half,
     );
@@ -423,15 +465,13 @@ export class Player {
         this.hearts = Math.min(this.maxHearts, this.hearts + magnitude);
         break;
       case 'FIRE_RATE_UP':
-        this._up.fireRate++;
-        this._recomputeUpgrades();
+        this._bumpWeaponStat('fireRate'); // ADR-0030: binds to the held gun
         break;
       case 'DAMAGE_UP':
-        this._up.damage++;
-        this._recomputeUpgrades();
+        this._bumpWeaponStat('damage'); // ADR-0030: binds to the held gun
         break;
       case 'SPEED_UP':
-        this._up.speed++;
+        this._up.speed++; // move-speed stays global
         this._recomputeUpgrades();
         break;
       case 'TAKE_DAMAGE':
@@ -451,24 +491,49 @@ export class Player {
    * drives the marginal "+X%" blurb; `commonStreak` drives this player's offer pity.
    */
   offerContext() {
+    const w = this._wUp();
+    const def = this.weaponDef || {};
     return {
       owned: this.slots.map((s) => s.toUpperCase()),
       recent: this.offerRecent,
       stacks: {
-        DAMAGE_UP: this._up.damage,
-        FIRE_RATE_UP: this._up.fireRate,
+        DAMAGE_UP: w.damage, // per-weapon → the marginal "+X%" blurb reflects THIS gun (ADR-0030)
+        FIRE_RATE_UP: w.fireRate,
         SPEED_UP: this._up.speed,
         DMG_REDUCT: this._up.damageReduction,
       },
+      // ADR-0030 weapon-aware gating: skip maxed stats + block explosive on explosive/fast guns.
+      // weaponExplosive includes the gun's OWN blast picks so one MOD_BLAST stops further offers;
+      // weaponMods lets maxed mod cards drop out; weaponOrbital blocks bullet-mods on the blades.
+      statCap: CAPS.upgradesPerStat,
+      weaponStat: { DAMAGE_UP: w.damage, FIRE_RATE_UP: w.fireRate },
+      weaponMods: {
+        MOD_PIERCE: w.pierce,
+        MOD_BOUNCE: w.bounces,
+        MOD_BULLET_SPEED: w.bulletSpeed,
+        MOD_BLAST: w.explodeRadius,
+      },
+      weaponExplosive: !!def.explosive || w.explodeRadius > 0,
+      weaponFast: (def.cooldown ?? 1) <= OFFERS.fastWeaponCd,
+      weaponOrbital: !!def.orbital,
+      ownedCount: this.slots.length,
+      luck: this._up.luck, // positive dial (the engine clamps it)
+      seenWeapons: this.offerSeenWeapons, // see-it-once weapon decay
       commonStreak: this.offerCommonStreak,
     };
   }
 
-  /** remember the ids just offered (anti-repeat ring buffer, capped at OFFERS.recentMemory). */
+  /** remember the ids just offered (anti-repeat ring buffer, capped at OFFERS.recentMemory).
+   *  Weapons ALSO get a permanent see-it-once count — each sighting halves their future weight. */
   noteOffered(ids) {
     this.offerRecent.push(...ids);
     if (this.offerRecent.length > OFFERS.recentMemory) {
       this.offerRecent.splice(0, this.offerRecent.length - OFFERS.recentMemory);
+    }
+    for (const id of ids) {
+      if (itemById(id)?.category === 'weapon') {
+        this.offerSeenWeapons[id] = (this.offerSeenWeapons[id] ?? 0) + 1;
+      }
     }
   }
 
@@ -481,9 +546,13 @@ export class Player {
     if (!item) return;
     const e = item.effect;
     switch (e.kind) {
-      case 'stat': // damage / fireRate / speed
-        this._up[e.stat] = (this._up[e.stat] ?? 0) + 1;
-        this._recomputeUpgrades();
+      case 'stat': // ADR-0030: damage / fireRate bind to the HELD gun; speed stays global
+        if (e.stat === 'speed') {
+          this._up.speed++;
+          this._recomputeUpgrades();
+        } else {
+          this._bumpWeaponStat(e.stat);
+        }
         break;
       case 'damageReduction':
         this._up.damageReduction++;
@@ -499,8 +568,17 @@ export class Player {
       case 'guard':
         this.guardCharges += e.charges;
         break;
-      case 'mod':
-        this._mods[e.flag] += e.amount;
+      case 'mod': {
+        // ADR-0030: weapon mods bind to the HELD gun, capped per stat
+        const w = this._wUp();
+        if ((w[e.flag] ?? 0) < CAPS.upgradesPerStat) w[e.flag]++;
+        break;
+      }
+      case 'globalDamage': // rare top-tier: a permanent damage multiplier across ALL weapons
+        this._globalDmgMul *= e.mult;
+        break;
+      case 'luck': // ADR-0030 positive dial (global, like speed — it buffs the run, not the gun)
+        this._up.luck++;
         break;
       case 'weapon':
         this.addWeapon(e.weapon);
