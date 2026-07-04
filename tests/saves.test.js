@@ -9,7 +9,8 @@ import {
   baselineStacks,
   saves,
 } from '../src/core/saves.js';
-import { META_UPGRADES } from '../src/config.js';
+import { metaBreakpointBonus } from '../src/core/scaling.js';
+import { META_UPGRADES, META_CURVE } from '../src/config.js';
 
 // reset the singleton before each test so they don't bleed into each other
 beforeEach(() => saves.reset());
@@ -251,7 +252,11 @@ describe('the beat-the-game gate', () => {
     const save = normalizeSave({ v: 1, echoes: 0, gameBeaten: true, upgrades, stats: {} });
     const stacks = baselineStacks(save);
     for (const node of META_UPGRADES) {
-      expect(stacks[node.effect.stat]).toBeGreaterThanOrEqual(node.effect.perLevel * node.maxLevel);
+      const expected =
+        node.effect.curve === 'percent'
+          ? metaBreakpointBonus(node.maxLevel, META_CURVE) // ADR-0031: standalone % curve
+          : node.effect.perLevel * node.maxLevel; // flat nodes (vitality/aegis) — unchanged
+      expect(stacks[node.effect.stat]).toBeCloseTo(expected);
     }
   });
 

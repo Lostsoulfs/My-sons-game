@@ -5,8 +5,11 @@ import {
   hardnessFacet,
   marginalBonus,
   allyShare,
+  metaLevelBonus,
+  metaBreakpointBonus,
+  metaLevelCost,
 } from '../src/core/scaling.js';
-import { UPGRADES, DIFFICULTY } from '../src/config.js';
+import { UPGRADES, DIFFICULTY, META_CURVE } from '../src/config.js';
 
 // Exp7 Stage 2 / ADR-0022 — the balance curves. Pure functions, golden-value tests
 // so the "feel math" can't silently drift.
@@ -135,6 +138,95 @@ describe('marginalBonus (B9 — the per-pick delta shown on offer cards)', () =>
     expect(marginalBonus(1, 1.0, 5)).toBeCloseTo(1 / 6); // statBonus(1) - statBonus(0)
     expect(marginalBonus(0, 1.0, 5)).toBe(0);
     expect(marginalBonus(-3, 1.0, 5)).toBe(0);
+  });
+});
+
+// ADR-0031 — the Resonance permanent-upgrade curve: golden values pinned to Scott's exact spec
+// ("first point is a .5% increase, then the next until 10 are .1%. 10 becomes a 1% perm upgrade
+// with twice the cost") so the feel can't silently drift.
+describe('metaLevelBonus (ADR-0031 permanent-upgrade breakpoint curve)', () => {
+  const cfg = { first: 0.005, small: 0.001, breakpoint: 0.01, every: 10 };
+
+  it('level 1 is the bigger first taste (+0.5%)', () => {
+    expect(metaLevelBonus(1, cfg)).toBeCloseTo(0.005);
+  });
+
+  it('levels 2-9 are small and FLAT (+0.1% each, not diminishing further)', () => {
+    for (let n = 2; n <= 9; n++) expect(metaLevelBonus(n, cfg)).toBeCloseTo(0.001);
+  });
+
+  it('level 10 is a breakpoint: back up to +1%', () => {
+    expect(metaLevelBonus(10, cfg)).toBeCloseTo(0.01);
+  });
+
+  it('breakpoints repeat every `every` levels (20, 30…) — never caps', () => {
+    expect(metaLevelBonus(20, cfg)).toBeCloseTo(0.01);
+    expect(metaLevelBonus(11, cfg)).toBeCloseTo(0.001); // the level right after a breakpoint is small again
+  });
+
+  it('is 0 at level 0 and below', () => {
+    expect(metaLevelBonus(0, cfg)).toBe(0);
+    expect(metaLevelBonus(-1, cfg)).toBe(0);
+  });
+});
+
+describe('metaBreakpointBonus (cumulative permanent bonus)', () => {
+  const cfg = { first: 0.005, small: 0.001, breakpoint: 0.01, every: 10 };
+
+  it('sums to exactly 2.3% at level 10 (0.5 + 8×0.1 + 1)', () => {
+    expect(metaBreakpointBonus(10, cfg)).toBeCloseTo(0.023);
+  });
+
+  it('is 0 at level 0', () => {
+    expect(metaBreakpointBonus(0, cfg)).toBe(0);
+  });
+
+  it('is monotonically increasing (every level adds something)', () => {
+    let prev = -1;
+    for (let n = 1; n <= 25; n++) {
+      const b = metaBreakpointBonus(n, cfg);
+      expect(b).toBeGreaterThan(prev);
+      prev = b;
+    }
+  });
+
+  it('the shipped META_CURVE matches Scott’s spec exactly', () => {
+    expect(META_CURVE.first).toBeCloseTo(0.005);
+    expect(META_CURVE.small).toBeCloseTo(0.001);
+    expect(META_CURVE.breakpoint).toBeCloseTo(0.01);
+    expect(META_CURVE.every).toBe(10);
+    expect(metaBreakpointBonus(10, META_CURVE)).toBeCloseTo(0.023);
+  });
+});
+
+describe('metaLevelCost (steep Echo cost, doubled on breakpoints)', () => {
+  const cfg = { base: 40, growth: 1.4, breakpointMul: 2, every: 10 };
+
+  it('level 1 costs exactly `base`', () => {
+    expect(metaLevelCost(1, cfg)).toBe(40);
+  });
+
+  it('grows geometrically between breakpoints', () => {
+    expect(metaLevelCost(2, cfg)).toBe(Math.round(40 * 1.4));
+    expect(metaLevelCost(9, cfg)).toBe(Math.round(40 * Math.pow(1.4, 8)));
+  });
+
+  it('a breakpoint level costs 2x what the plain ramp would have charged', () => {
+    const plain = 40 * Math.pow(1.4, 9);
+    expect(metaLevelCost(10, cfg)).toBe(Math.round(plain * 2));
+  });
+
+  it('is strictly increasing — a steep grind, never cheap to max (Scott: not in a few playthroughs)', () => {
+    let prev = 0;
+    for (let n = 1; n <= 20; n++) {
+      const c = metaLevelCost(n, cfg);
+      expect(c).toBeGreaterThan(prev);
+      prev = c;
+    }
+  });
+
+  it('is Infinity at level 0 and below', () => {
+    expect(metaLevelCost(0, cfg)).toBe(Infinity);
   });
 });
 

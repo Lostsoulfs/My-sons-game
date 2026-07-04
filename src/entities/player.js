@@ -78,9 +78,11 @@ export class Player {
     // (B9b) adds one; the derived stats come from the diminishing-returns curve (config.UPGRADES +
     // core/scaling.js) so power ramps over the run instead of capping early.
     // GLOBAL body/run stats live here; per-weapon damage/fireRate/mods live in _weaponUpgrades (ADR-0030).
+    // Baseline speed/damageReduction are NOT seeded in as stacks (ADR-0031): the permanent Resonance
+    // % is a standalone bonus applied in _recomputeUpgrades, kept separate from the in-run curve.
     this._up = {
-      speed: bl.speed,
-      damageReduction: bl.damageReduction,
+      speed: 0,
+      damageReduction: 0,
       luck: 0, // ADR-0030 positive dial — biases offer tiers up (capped in the offer engine)
     };
     this.guardCharges = bl.guard; // permanent guard charges from the meta-layer (added to offer charges)
@@ -434,26 +436,26 @@ export class Player {
    */
   _recomputeUpgrades() {
     const w = this._wUp(this.weapon || this.slots?.[this.slotIndex] || 'pistol');
-    const bl = this._baseline;
-    // damage + fire-rate come from the HELD gun's stacks + the global Echoes baseline (ADR-0030)
+    const bl = this._baseline; // ADR-0031: a standalone % from Resonance, ADDED on top — not a stack
+    // damage + fire-rate come from the HELD gun's in-run stacks (ADR-0030); the permanent Resonance
+    // % (bl.damage/bl.fireRate) tops it up directly, independent of any per-weapon/in-run curve.
     this.damageMul = Math.min(
       CAPS.damageMul,
-      1 + statBonus(w.damage + bl.damage, UPGRADES.damage.maxBonus, UPGRADES.damage.half),
+      1 + statBonus(w.damage, UPGRADES.damage.maxBonus, UPGRADES.damage.half) + bl.damage,
     );
     this.fireRateMul = Math.max(
       CAPS.fireRateMin,
-      1 - statBonus(w.fireRate + bl.fireRate, UPGRADES.fireRate.maxBonus, UPGRADES.fireRate.half),
+      1 - statBonus(w.fireRate, UPGRADES.fireRate.maxBonus, UPGRADES.fireRate.half) - bl.fireRate,
     );
     // move-speed + damage-reduction stay GLOBAL (they buff the body/run, not the gun)
     this.speed = Math.min(
       PLAYER.speed * CAPS.speedMul,
-      PLAYER.speed * (1 + statBonus(this._up.speed, UPGRADES.speed.maxBonus, UPGRADES.speed.half)),
+      PLAYER.speed *
+        (1 + statBonus(this._up.speed, UPGRADES.speed.maxBonus, UPGRADES.speed.half) + bl.speed),
     );
-    this.damageReductionFrac = statBonus(
-      this._up.damageReduction,
-      DAMAGE_REDUCTION.maxBonus,
-      DAMAGE_REDUCTION.half,
-    );
+    this.damageReductionFrac =
+      statBonus(this._up.damageReduction, DAMAGE_REDUCTION.maxBonus, DAMAGE_REDUCTION.half) +
+      bl.damageReduction;
   }
 
   /** apply a survivor outcome or pickup buff/debuff. The UPs add one stack each

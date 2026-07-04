@@ -1207,10 +1207,28 @@ export const SAVES = {
   winBonus: 50, // Echoes granted on the win that sets gameBeaten (first win only)
 };
 
-// META_UPGRADES — the Resonance upgrade tree. Each node feeds an existing capped curve
-// so per-pick power stays small (Scott's intent: breadth, not power creep).
-// `cost` is an array with one entry per level (length === maxLevel).
-// `effect` maps to a stat key used by core/saves.js baselineStacks().
+// ---- Resonance breakpoint curve (ADR-0031) — shared by every PERCENT node below ----
+// Scott's spec: the first level is a bigger taste, filler levels are small and flat, and
+// every `every`-th level is a BREAKPOINT that jumps back up — but costs extra there too.
+// (level 1 = +0.5%, levels 2-9 = +0.1% each, level 10 = +1% at 2x cost — then it repeats.)
+// Deliberately NOT the asymptotic curve UPGRADES uses: this stays climbing, however slowly,
+// well past any node's current maxLevel, and is applied SEPARATELY from the in-run stat curve
+// (core/scaling.js metaBreakpointBonus/metaLevelCost) so permanent power can't be bought fast.
+export const META_CURVE = {
+  first: 0.005, // level 1: +0.5%
+  small: 0.001, // filler levels: +0.1% each
+  breakpoint: 0.01, // every `every`-th level: +1%
+  every: 10, // breakpoint spacing
+  breakpointCostMul: 2, // breakpoint levels cost 2x the normal ramp cost
+};
+
+// META_UPGRADES — the Resonance upgrade tree.
+// Two node KINDS:
+//   • percent nodes (effect.curve:'percent') — sharpness/swiftness/rapid/toughHide. A slow,
+//     steep, standalone % curve (META_CURVE + costBase/costGrowth), applied ON TOP of the
+//     in-run stat, not mixed into it — see core/saves.js baselineStacks + entities/player.js.
+//   • flat nodes (effect.perLevel) — vitality/aegis. Small integer stacks (+1 heart/guard per
+//     level); `cost` is a fixed array, one entry per level (length === maxLevel). Unchanged.
 export const META_UPGRADES = [
   {
     id: 'vitality',
@@ -1224,38 +1242,42 @@ export const META_UPGRADES = [
   {
     id: 'sharpness',
     name: 'Sharpness',
-    desc: '+1 damage stack',
+    desc: 'Permanent +damage (slow climb, all runs)',
     icon: '⚔️',
-    maxLevel: 3,
-    cost: [50, 100, 160],
-    effect: { stat: 'damage', perLevel: 1 },
+    maxLevel: 10,
+    costBase: 45,
+    costGrowth: 1.4,
+    effect: { stat: 'damage', curve: 'percent' },
   },
   {
     id: 'swiftness',
     name: 'Swiftness',
-    desc: '+1 speed stack',
+    desc: 'Permanent +speed (slow climb, all runs)',
     icon: '💨',
-    maxLevel: 3,
-    cost: [50, 100, 160],
-    effect: { stat: 'speed', perLevel: 1 },
+    maxLevel: 10,
+    costBase: 45,
+    costGrowth: 1.4,
+    effect: { stat: 'speed', curve: 'percent' },
   },
   {
     id: 'rapid',
     name: 'Rapid',
-    desc: '+1 fire-rate stack',
+    desc: 'Permanent +fire-rate (slow climb, all runs)',
     icon: '🔥',
-    maxLevel: 3,
-    cost: [50, 100, 160],
-    effect: { stat: 'fireRate', perLevel: 1 },
+    maxLevel: 10,
+    costBase: 45,
+    costGrowth: 1.4,
+    effect: { stat: 'fireRate', curve: 'percent' },
   },
   {
     id: 'toughHide',
     name: 'Tough Hide',
-    desc: '+1 damage-reduction stack',
+    desc: 'Permanent +damage reduction (slow climb, all runs)',
     icon: '🛡️',
-    maxLevel: 2,
-    cost: [70, 140],
-    effect: { stat: 'damageReduction', perLevel: 1 },
+    maxLevel: 10,
+    costBase: 45,
+    costGrowth: 1.4,
+    effect: { stat: 'damageReduction', curve: 'percent' },
   },
   {
     id: 'aegis',
