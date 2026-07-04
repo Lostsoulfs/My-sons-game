@@ -608,15 +608,15 @@ export const CONTROLLER = {
 // and the pipeline auto-falls-back to raw render if post-FX can't initialize (never breaks).
 export const GRAPHICS = {
   enabled: true, // master switch — false = raw renderer.render()
-  pixelRatioCap: 1.5, // max devicePixelRatio (FPS-1 dial-back: was 2). Only bites on hi-DPI panels (DPR > 1.5); A/B live in the debug "Graphics" folder.
+  pixelRatioCap: 2, // max devicePixelRatio. Restored to 2 now the discrete GPU is confirmed (the 1.5 was an iGPU red-herring dial-back). Only bites on hi-DPI panels; A/B live in the debug "Graphics" folder.
   toneMapping: 'aces', // filmic curve: 'aces' | 'agx' | 'neutral' | 'none'
-  aaSamples: 4, // WebGL2 MSAA samples for the post-FX path (0 = off)
+  aaSamples: 8, // WebGL2 MSAA samples for the post-FX path (0 = off). Raised 4→8 (discrete-GPU headroom).
   bloom: {
     enabled: true, // FPS-1: A/B the bloom pass live in the debug "Graphics" folder
-    intensity: 0.8, // glow strength
+    intensity: 1.15, // glow strength (raised 0.8→1.15 — brighter threats; still luminance-gated so the dark world stays dark)
     threshold: 0.55, // only pixels brighter than this bloom (keeps the dark world dark)
     smoothing: 0.3, // soft knee around the threshold
-    radius: 0.62, // glow spread (0..1)
+    radius: 0.8, // glow spread (0..1) (raised 0.62→0.8 for a wider, softer halo)
   },
   vignette: {
     enabled: true,
@@ -635,7 +635,16 @@ export const GRAPHICS = {
     // `pool` caps memory — when it saturates (a hose), trails just get shorter (graceful).
     trail: { pool: 160, life: 0.09, interval: 0.016, width: 0.16, length: 0.9 },
     muzzle: { sparks: 3, color: 0xffe0a0 }, // barrel flash (warm; energy guns tint to the bullet)
-    impact: { sparks: 5, scorchColor: 0x88ffcc }, // enemy-hit spark / energy scorch
+    impact: {
+      sparks: 5, // enemy-hit spark count
+      scorchColor: 0x88ffcc, // energy scorch tint
+      // chain explosions: an 'explode' impact queues a few smaller delayed bursts around it
+      // (VISUAL only — no damage, one level deep, skipped under reducedEffects)
+      secondaries: { count: 3, delayMin: 0.05, delayMax: 0.16, radius: 2.2, scale: 0.45 },
+    },
+    // player-shot SHAPE by flavor: stretch along travel (beam = long rod, bolt = short rod,
+    // tracer = slight). Enemy bullets stay round dots — bullet-hell readability comes first.
+    bulletStretch: { beam: 3.4, bolt: 2.1, tracer: 1.5, squish: 0.8 },
   },
   // real-time shadow maps (ADR-0026 Phase B — src/core/scene.js). ONE shadow-casting
   // light (the warm key); a tight orthographic frustum fit to the ARENA. Bullets, eyes,
@@ -645,7 +654,7 @@ export const GRAPHICS = {
   // radius down → frustumMargin tighter → enabled:false. Swap-and-see in `npm run dev`.
   shadows: {
     enabled: true, // master switch (also gated off by the reducedEffects setting)
-    mapSize: 1024, // shadow-map resolution per side (FPS-1 dial-back: was 2048; 1024 = softer + cheaper). A/B live in the debug "Graphics" folder.
+    mapSize: 2048, // shadow-map resolution per side. Restored to 2048 (crisp) now the discrete GPU is confirmed; 1024 was an iGPU dial-back. Ladder if a packed room ever dips: 2048→1024→radius↓→off.
     frustumMargin: 4, // world-unit slack around the arena for the ortho shadow frustum
     near: 1, // shadow camera near plane
     far: 80, // shadow camera far plane (must exceed the key light → floor distance)
@@ -680,7 +689,7 @@ export const GRAPHICS = {
   // Dial-back if it ever costs frames: keep halfRes → quality 'Performance' → smaller radius.
   ao: {
     enabled: true, // master switch (off here = composer renders without the AO pass)
-    quality: 'Performance', // N8AO preset: 'Performance' | 'Low' | 'Medium' | 'High' | 'Ultra'
+    quality: 'Medium', // N8AO preset (raised Performance→Medium on discrete-GPU headroom): 'Performance' | 'Low' | 'Medium' | 'High' | 'Ultra'
     halfRes: true, // sample AO at half resolution (the big perf win; fine for soft AO)
     radius: 2.0, // world-space sample radius (n8ao default 5 is too big for our scale)
     distanceFalloff: 1.0, // how quickly AO fades with distance
@@ -1109,8 +1118,12 @@ export const PICKUPS = {
   },
   // DAMAGE_UP / FIRE_RATE_UP / SPEED_UP each add ONE stack; the stat is recomputed from the
   // diminishing-returns curve (UPGRADES + core/scaling.js), so there are no per-pickup step sizes.
-  healAmount: 2, // hearts restored by a HEAL pickup
+  healAmount: 2, // hearts restored by a HEAL pickup (boss reward)
   bossHealSpawn: { x: -2, z: 0 }, // where the guaranteed post-boss HEAL lands (ADR-0030 boss reward)
+  // rare mob heart: a small chance any mob drops a +1 heart on death. Luck matters but skill
+  // dominates — keep this low so healing is earned, not spammed (bosses still guarantee a HEAL).
+  mobHeartAmount: 1, // hearts restored by a mob-dropped HEART
+  mobHeartDropRate: 0.02, // ~1-in-50 mobs drop a +1 heart (seeded via game.rng — reproducible)
 };
 
 // ---- B9: room-clear upgrade OFFER screen (pick 1 of 3) ----

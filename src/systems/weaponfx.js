@@ -15,6 +15,7 @@
 
 import * as THREE from 'three';
 import { GRAPHICS } from '../config.js';
+import { makeRng } from '../core/rng.js';
 import { settings } from './settings.js';
 
 const BALLISTIC_TRAIL = 0xffd27a; // warm lead tracer
@@ -42,6 +43,15 @@ export class WeaponFX {
       this.streaks.push({ mesh, mat, life: 0, maxLife: 1 });
     }
     this._next = 0;
+    this._pending = []; // delayed secondary explosion bursts (visual only, one level deep)
+    // visual-only jitter rng — NOT the game's seeded run-rng (FX must never consume run
+    // randomness, ADR-0013); a local mulberry32 also keeps Sonar S2245 happy vs Math.random
+    this._rng = makeRng();
+  }
+
+  /** drop all queued secondary bursts (room change / restart — don't leak FX across rooms). */
+  clear() {
+    this._pending.length = 0;
   }
 
   _on() {
@@ -112,6 +122,23 @@ export class WeaponFX {
     const vfx = GRAPHICS.vfx || {};
     if (kind === 'explode') {
       this.particles.burst(x, z, 26, 0xff7722); // the rocket blast (unconditional, as before)
+      // chain explosions: queue a few smaller, delayed bursts around the blast. VISUAL ONLY —
+      // no damage, never re-queues (one level deep) — and extra juice, so gated by _on().
+      const sec = vfx.impact?.secondaries;
+      if (sec && this._on()) {
+        for (let i = 0; i < (sec.count ?? 3); i++) {
+          const a = this._rng.next() * Math.PI * 2; // visual-layer randomness (local rng)
+          const r = (sec.radius ?? 2.2) * (0.4 + this._rng.next() * 0.6) * intensity;
+          this._pending.push({
+            t:
+              (sec.delayMin ?? 0.05) +
+              this._rng.next() * ((sec.delayMax ?? 0.16) - (sec.delayMin ?? 0.05)),
+            x: x + Math.sin(a) * r,
+            z: z + Math.cos(a) * r,
+            count: Math.max(4, Math.round(26 * (sec.scale ?? 0.45) * intensity)),
+          });
+        }
+      }
       return;
     }
     if (!this._on() || vfx.impactSparks === false) return;
@@ -123,6 +150,15 @@ export class WeaponFX {
   }
 
   update(dt) {
+    // fire any due secondary explosion bursts (iterate backwards so splice is safe)
+    for (let i = this._pending.length - 1; i >= 0; i--) {
+      const p = this._pending[i];
+      p.t -= dt;
+      if (p.t <= 0) {
+        this.particles?.burst(p.x, p.z, p.count, 0xff5511); // darker follow-up pop
+        this._pending.splice(i, 1);
+      }
+    }
     for (const s of this.streaks) {
       if (s.life <= 0) continue;
       s.life -= dt;

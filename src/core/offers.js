@@ -130,20 +130,16 @@ function drawCard(
  *   marginal "+X%" blurb); commonStreak = dry-streak of commons taken (drives pity).
  * @returns {Array<{id:string, name:string, category:string, tier:string, blurb:string}>}
  */
-export function generateOffer(rng, ctx = {}) {
-  const owned = ctx.owned instanceof Set ? ctx.owned : new Set(ctx.owned ?? []);
-  const recent = ctx.recent instanceof Set ? ctx.recent : new Set(ctx.recent ?? []);
-  const stacksOf = ctx.stacks ?? {};
-  let floor = pityFloorTier(ctx.commonStreak ?? 0);
-  // boss clears guarantee at least a 'rare' floor card (ADR-0030 boss-tier reward)
-  if (ctx.bossTier && (!floor || tierIndex(floor) < tierIndex('rare'))) floor = 'rare';
-
-  // ADR-0030 weapon-aware gating — all opt-in via ctx; absent fields ⇒ no gating (back-compat):
-  //   • drop a stat/mod card once the HELD gun has maxed it (statCap / weaponMods),
-  //   • withhold explosive tips on already-explosive (incl. modded) or fast-firing guns,
-  //   • withhold ALL bullet-mods on the Orbital Blade (it fires no bullets — dead picks),
-  //   • drop LUCK_UP once luck is at its cap (dead card otherwise),
-  //   • down-weight weapon offers once you already carry more than one gun.
+/**
+ * ADR-0030 weapon-aware gating (PURE) — all opt-in via ctx; absent fields ⇒ no gating (back-compat):
+ *   • drop a stat/mod card once the HELD gun has maxed it (statCap / weaponMods),
+ *   • withhold explosive tips on already-explosive (incl. modded) or fast-firing guns,
+ *   • withhold ALL bullet-mods on the Orbital Blade (it fires no bullets — dead picks),
+ *   • drop LUCK_UP once luck is at its cap (dead card otherwise),
+ *   • down-weight weapon offers once you already carry more than one gun.
+ * LUCK is clamped here ONCE (0..maxStacks) so nothing downstream can exceed the cap or go negative.
+ */
+function buildGates(ctx) {
   const blocked = new Set();
   const cap = ctx.statCap ?? Infinity;
   const ws = ctx.weaponStat ?? {};
@@ -156,12 +152,24 @@ export function generateOffer(rng, ctx = {}) {
   if (ctx.weaponOrbital) {
     for (const id of ['MOD_PIERCE', 'MOD_BOUNCE', 'MOD_BULLET_SPEED', 'MOD_BLAST']) blocked.add(id);
   }
-  const weaponDecay = (ctx.ownedCount ?? 0) > 1 ? (OFFERS.extraWeaponDecay ?? 1) : 1;
-  // LUCK (positive dial, ADR-0030): clamped here ONCE (0..maxStacks) so nothing downstream can
-  // exceed the cap or go negative; at the cap the LUCK_UP card leaves the pool entirely.
   const luck = Math.max(0, Math.min(ctx.luck ?? 0, OFFERS.luck.maxStacks));
   if (luck >= OFFERS.luck.maxStacks) blocked.add('LUCK_UP');
-  const seenWeapons = ctx.seenWeapons ?? null; // id -> times offered (see-it-once decay)
+  return {
+    blocked,
+    luck,
+    weaponDecay: (ctx.ownedCount ?? 0) > 1 ? (OFFERS.extraWeaponDecay ?? 1) : 1,
+    seenWeapons: ctx.seenWeapons ?? null, // id -> times offered (see-it-once decay)
+  };
+}
+
+export function generateOffer(rng, ctx = {}) {
+  const owned = ctx.owned instanceof Set ? ctx.owned : new Set(ctx.owned ?? []);
+  const recent = ctx.recent instanceof Set ? ctx.recent : new Set(ctx.recent ?? []);
+  const stacksOf = ctx.stacks ?? {};
+  let floor = pityFloorTier(ctx.commonStreak ?? 0);
+  // boss clears guarantee at least a 'rare' floor card (ADR-0030 boss-tier reward)
+  if (ctx.bossTier && (!floor || tierIndex(floor) < tierIndex('rare'))) floor = 'rare';
+  const { blocked, luck, weaponDecay, seenWeapons } = buildGates(ctx);
 
   const chosen = new Set();
   const catCount = {};

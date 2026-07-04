@@ -463,6 +463,7 @@ export class Player {
   applyEffect(effect, magnitude, game) {
     switch (effect) {
       case 'HEAL':
+      case 'HEART': // rare mob drop (+1); shares the heal clamp, magnitude set by the pickup
         this.hearts = Math.min(this.maxHearts, this.hearts + magnitude);
         break;
       case 'FIRE_RATE_UP':
