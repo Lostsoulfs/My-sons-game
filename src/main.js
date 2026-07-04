@@ -46,7 +46,8 @@ import { saves } from './core/saves.js';
   game.gfx = { setShadowsEnabled, setPixelRatioCap, setShadowMapSize };
   game.init();
 
-  // debug handle (poke the game from the dev console, e.g. window.__game.loadRoom(5))
+  // debug handle (poke the game from the dev console, e.g. window.__game._startFloor(2)
+  // or window.__game.loadNode(id, null) — ADR-0032 replaced the linear loadRoom)
   window.__game = game;
   window.__audio = audio; // music/sfx facade (used by the verification drive)
   window.__saves = saves; // meta-progression save (used by the verification drive)

@@ -80,6 +80,9 @@ export function buildRoom(scene, rng, sidesSpec = { link: ['N'], exit: null }) {
     (doorSides.has('S') && Math.abs(cx) < dh + 2 && cz > hd - 7) ||
     (doorSides.has('W') && Math.abs(cz) < dh + 2 && cx < -hw + 7) ||
     (doorSides.has('E') && Math.abs(cz) < dh + 2 && cx > hw - 7);
+  // keep a small radius around dead-center clear: the heal room drops its guaranteed
+  // HEAL at (0,0), and a walkable centre is a fair neutral space in every room (ADR-0032).
+  const CENTER_CLEAR = 3;
   const n = Math.round(rng.range(ROOMS.obstaclesMin, ROOMS.obstaclesMax + 1));
   for (let i = 0; i < n; i++) {
     const w = rng.range(2, 5);
@@ -88,6 +91,14 @@ export function buildRoom(scene, rng, sidesSpec = { link: ['N'], exit: null }) {
     const cz = rng.range(-hd + 5, hd - 7);
     if (nearDoor(cx, cz)) continue;
     const box = { minX: cx - w / 2, maxX: cx + w / 2, minZ: cz - d / 2, maxZ: cz + d / 2 };
+    // reject any rubble whose footprint would intrude on the centre keep-clear zone
+    if (
+      box.minX < CENTER_CLEAR &&
+      box.maxX > -CENTER_CLEAR &&
+      box.minZ < CENTER_CLEAR &&
+      box.maxZ > -CENTER_CLEAR
+    )
+      continue;
     walls.push(box);
     group.add(boxMesh(box, rng.range(1.2, 2.4), PALETTE.wallTop));
   }

@@ -82,7 +82,10 @@ describe('PROGRESSION config invariants', () => {
     expect(MAP.maxRooms).toBeGreaterThanOrEqual(MAP.baseRooms);
     expect(MAP.rejectChance).toBeGreaterThan(0);
     expect(MAP.rejectChance).toBeLessThan(1);
-    expect(MAP.gridSize * MAP.gridSize).toBeGreaterThan(MAP.maxRooms); // grid never the bottleneck
+    // grid must fit maxRooms as a straight LINE, not just by area: the degenerate
+    // corridor fallback (floorplan.js) lays rooms along one row, so gridSize < maxRooms
+    // would silently under-fill it and break the exact-room-count contract (ADR-0032).
+    expect(MAP.gridSize).toBeGreaterThanOrEqual(MAP.maxRooms);
   });
 
   it('there is at least one floor', () => {

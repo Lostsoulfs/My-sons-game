@@ -260,7 +260,9 @@ export class Game {
       pl.x = at.x + (at.spread === 'x' ? off : 0);
       pl.z = at.z + (at.spread === 'z' ? off : 0);
       pl.mesh.position.set(pl.x, 0, pl.z);
-      pl.mesh.visible = true;
+      pl.mesh.visible = pl.alive; // a downed co-op partner stays hidden until revived (ADR-0032)
+      // brief spawn grace: no free contact hit if a mob/boss sits on the entry (ADR-0032)
+      pl.spawnSafe = pl.alive ? ROOMS.entryGrace : 0;
     });
     if (this.ally) this.ally.reset(at.x + (at.spread === 'x' ? 1.5 : 0), at.z + 1);
 
@@ -301,6 +303,7 @@ export class Game {
       survivor: !!node.survivor,
       def: meta.def,
       diff: meta.diff,
+      entry: { x: at.x, z: at.z }, // keep spawns clear of the door we walked in through
     };
     populateRoom(this, desc, layoutRng);
     this.bosses = this.enemies.filter((e) => e.isBoss);

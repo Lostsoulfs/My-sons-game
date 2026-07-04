@@ -102,6 +102,36 @@ testable in isolation.
 - Deferred (backlogged, per research): secret rooms, one-way loops, shop rooms,
   minimap toggle key, in-arena door indicators, gentle linger-threat.
 
+## Post-review hardening (adversarial pass)
+
+A multi-dimension review of the diff surfaced eight issues, fixed before the PR:
+
+- **Spawn safety (was major).** Enemy/boss spawns assumed the old bottom-only
+  entrance; on the connected map you enter from N/S/E/W, so a mob could
+  materialise on you for a free contact hit. Fix: `findSpot` now keeps
+  `ROOMS.entryClearance` clear of the entry, and every player gets a brief,
+  non-flickering `spawnSafe` grace (`ROOMS.entryGrace`) on room entry — a boss
+  can still stand where you walk in (accepted, cosmetic) but cannot chip you.
+- **Downed co-op partner** was force-shown alive on every door walk; now
+  `mesh.visible = pl.alive` and a downed player gets no entry grace.
+- **Heal-room HEAL** at (0,0) could spawn inside rubble; `buildRoom` now keeps a
+  centre keep-clear zone (also a fair neutral space in every room).
+- **Minimap cell size** was hardcoded in CSS and duplicated `MINIMAP.cell`; it's
+  now sized inline from config (single source of truth).
+- **Corridor fallback** could under-fill when `roomCount > gridSize`; `MAP.gridSize`
+  is now kept `≥ maxRooms` (config-tested) so the degenerate corridor is exact,
+  and the fallback path has its own test.
+- **`determinism.test.js` was a false green** (the trap this ADR warned about): it
+  modelled a dead `rollDrop` seam and resolved survivors on the room rng, while
+  production draws offers (`generateOffer`) and survivor decisions from the RUN
+  rng. Rewritten to exercise the real seams, and path-independence is now proved
+  only for room CONTENT (node-seeded) — not over-claimed for the whole run stream.
+- **Survivor-quota + fallback test gaps** closed (quota is now asserted MET, not
+  just "degrades gracefully"; the corridor fallback is exercised directly).
+- **Not reproducible / skipped:** a final-floor re-kill double-count needs a death
+  inside a cleared boss room, which has no damage source (bullets + hazards are
+  swept on clear, the boss is gone) — left as a noted defensive gap, not fixed.
+
 ## Alternatives considered
 
 - **Keep linear, add optional side rooms** — rejected: doesn't deliver the

@@ -140,8 +140,8 @@
       }
       .mm-cell {
         position: absolute;
-        width: 12px;
-        height: 12px;
+        /* width/height are set inline from config.MINIMAP.cell by hud.setMinimap
+           (single source of truth — see the layout math there) */
         border-radius: 3px;
         background: #2a3340; /* fallback; kinds below override */
       }

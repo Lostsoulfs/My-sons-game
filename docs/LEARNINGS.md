@@ -813,3 +813,16 @@ base*(1+growth)^i`. Removed the hand-set per-floor `diff` from `PROGRESSION.floo
   `loadRoom` or it leaks across rooms.
 - **The post-boss minion sweep bypasses `Enemy.die()`** (marks dead + removes mesh), so on-death
   side effects (heart rolls, `onDeath` hooks) intentionally don't fire for swept minions.
+- **A "path-independence" determinism proof can lie by modelling the wrong seam** (ADR-0032
+  irony — it warned about exactly this trap and then fell into it). The old `determinism.test.js`
+  resolved survivors on the _room_ rng and drew a dead `rollDrop`, so it certified a property the
+  game lacked (survivors + offers actually ride the _run_ rng — `game.js:514`, `game.js:623`).
+  When a test claims a run-wide invariant, grep the production draw sites and confirm the test
+  drives THOSE functions, not a plausible-looking stand-in. Split the honest claims: room CONTENT
+  is node-seeded (path-independent); run-rng events (floorplan/offers/decisions) are order-
+  dependent by design.
+- **Connected-map spawns must clear the ENTRY, not just the old bottom door.** Any spawn logic
+  written for the linear game assumed the S-only entrance (`findSpot` z-band, boss at top-center).
+  On the graph you enter from N/S/E/W, so a spawn band or fixed boss slot can land a free contact
+  hit. Belt-and-suspenders: `findSpot` avoids the entry point AND a non-flickering `spawnSafe`
+  grace on entry (separate from `invuln`, which flickers the mesh and reads as "you got hit").

@@ -164,12 +164,50 @@ describe('layout seeds + survivor quota (ADR-0032)', () => {
     }
   });
 
-  it('survivor quota degrades gracefully when there are few normal rooms', () => {
+  it('tags EXACTLY min(quota, normal-room count) survivors — quota met when rooms allow', () => {
+    // enough normal rooms → the full quota lands (not fewer): a real coverage check,
+    // not the old tautology that stayed green even if zero survivors were ever tagged.
+    for (const s of SEEDS) {
+      const plan = generateFloorplan(makeRng(s), { ...MAP, roomCount: 12, survivors: 2 });
+      const normals = plan.rooms.filter((r) => r.type === 'normal').length;
+      const tagged = plan.rooms.filter((r) => r.survivor).length;
+      expect(tagged).toBe(Math.min(2, normals));
+    }
+  });
+
+  it('survivor quota degrades to the normal-room count when survivors outnumber rooms', () => {
     const plan = generateFloorplan(makeRng(5), { ...MAP, roomCount: 3, survivors: 5 });
-    const tagged = plan.rooms.filter((r) => r.survivor);
-    expect(tagged.length).toBeLessThanOrEqual(
-      plan.rooms.filter((r) => r.type === 'normal').length + tagged.length,
-    );
+    const normals = plan.rooms.filter((r) => r.type === 'normal').length;
+    const tagged = plan.rooms.filter((r) => r.survivor).length;
+    expect(tagged).toBe(normals); // clamped to what's available, never over-tagged
+  });
+});
+
+// The degenerate corridor fallback (floorplan.js) is the one path the happy-path tests
+// never hit; drive it directly so its invariants (exact count, tree, dead-end boss) are
+// locked, not assumed (ADR-0032).
+describe('corridor fallback (pathological configs)', () => {
+  it('falls back to a straight corridor and still honours every invariant', () => {
+    // retries:0 forces the fallback with zero expansion attempts; gridSize ≥ roomCount
+    // (the config invariant) means the corridor fits the EXACT room count.
+    for (const s of SEEDS.slice(0, 8)) {
+      const plan = generateFloorplan(makeRng(s), {
+        gridSize: 16,
+        rejectChance: 0.5,
+        roomCount: 12,
+        retries: 0,
+        survivors: 2,
+      });
+      expect(plan.rooms.length).toBe(12); // exact-count contract holds in the fallback too
+      const edges = plan.rooms.reduce(
+        (n, r) => n + DIRS.filter((d) => r.neighbours[d] != null).length,
+        0,
+      );
+      expect(edges / 2).toBe(plan.rooms.length - 1); // tree: rooms-1 undirected edges
+      expect(plan.rooms[plan.bossId].type).toBe('boss');
+      const bossLinks = DIRS.filter((d) => plan.rooms[plan.bossId].neighbours[d] != null).length;
+      expect(bossLinks).toBe(1); // boss is a dead end even in the corridor
+    }
   });
 });
 

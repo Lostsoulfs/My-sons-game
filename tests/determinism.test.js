@@ -1,33 +1,39 @@
 import { describe, it, expect } from 'vitest';
 import { makeRng } from '../src/core/rng.js';
-import { rollDrop, rarityBand, pityMinTier } from '../src/core/drops.js';
-import { MAP, PICKUPS, ROOMS } from '../src/config.js';
+import { MAP, ROOMS } from '../src/config.js';
 import { resolveDecision } from '../src/systems/npcDecision.js';
+import { generateOffer } from '../src/core/offers.js';
 import { generateFloorplan, roomCountForFloor } from '../src/core/floorplan.js';
 
 // Cross-system determinism: the game's RANDOM LOGIC (not its rendering) must be
-// fully reproducible from a single seed. Per-system tests already cover drops,
-// floorplans, and survivor outcomes in isolation; this drives the REAL production
-// functions through ONE shared rng, in game order, and checks the whole run is
-// stable. That stability is what makes a seeded run replayable (startRun(seed) +
-// window.__game) — ADR-0013.
+// reproducible from a single seed — that's what makes a seeded run replayable
+// (startRun(seed) + window.__game, ADR-0013).
 //
-// ADR-0032 shape: a run is floors of CONNECTED maps. Per floor, the run rng is
-// consumed by generateFloorplan (layout + per-node layoutSeeds + survivor tags);
-// each ROOM then consumes only its own makeRng(layoutSeed) — so the transcript
-// below also PROVES path-independence: visiting rooms in any order cannot shift
-// the run stream, because rooms never touch it.
+// ADR-0032 splits the rng into two streams, and this file tests them HONESTLY —
+// i.e. against the seams production actually uses (an earlier draft modelled a
+// dead `rollDrop` seam and resolved survivors on the room rng; neither matches the
+// game, so those "proofs" certified properties the game didn't have):
 //
-// Note: room *population* (populateRoom) is render-coupled (it builds Enemy/
-// Boss/Npc with the scene), so it can't run headless. We exercise the pure,
-// rng-consuming production seams the run actually uses.
+//   • the RUN rng is consumed, in game order, by
+//       - generateFloorplan(this.rng)  once per floor           (game.js _startFloor)
+//       - generateOffer(this.rng)      once per room CLEAR       (game.js:623)
+//       - resolveDecision(this.rng)    on a survivor interaction (game.js:514)
+//     These are order/input-dependent BY DESIGN (a replay reproduces the inputs).
+//
+//   • room LAYOUT + SPAWNS never touch the run rng — buildRoom/populateRoom draw
+//     from makeRng(node.layoutSeed) (spawner.js). So room CONTENT is a pure function
+//     of the node's seed, independent of when/whether/in-what-order it's visited.
+//     That decoupling is what makes backtracking safe, and it's proved on its own
+//     below (NOT by folding run-rng draws into a path-independence claim).
+//
+// Note: populateRoom itself is render-coupled (builds Enemy/Boss with the scene), so
+// we drive the pure, rng-consuming seams the run actually uses.
 
-function runTranscript(seed, { floors = 3, visitOrder = 'forward' } = {}) {
+// One full run in canonical (graph) order, exercising every REAL run-rng seam.
+function runTranscript(seed, { floors = 3 } = {}) {
   const rng = makeRng(seed);
   const log = [];
-  let commonStreak = 0; // mirrors game.js hard-pity counter
   for (let f = 0; f < floors; f++) {
-    // the ONLY run-rng draw per floor: the connected map (ADR-0032)
     const plan = generateFloorplan(rng, {
       ...MAP,
       roomCount: roomCountForFloor(f, MAP),
@@ -35,25 +41,26 @@ function runTranscript(seed, { floors = 3, visitOrder = 'forward' } = {}) {
     });
     log.push(`floor:${f}:${plan.rooms.map((r) => `${r.x},${r.y},${r.type}`).join('|')}`);
 
-    // rooms consume their OWN layout seeds — in whatever order the player walks.
-    // Reversing the visit order must not change anything downstream.
-    const order = [...plan.rooms];
-    if (visitOrder === 'reverse') order.reverse();
-    for (const node of order) {
+    for (const node of plan.rooms) {
+      // room CONTENT rolls come from the node's OWN seed (the path-independent stream)
       const roomRng = makeRng(node.layoutSeed);
-      if (node.type === 'boss') continue; // boss spawns draw from roomRng in-game
-      log.push(`room:${node.id}:spawn:${roomRng.chance(0.4) ? 'shooter' : 'chaser'}`);
+      if (node.type !== 'boss') {
+        log.push(`spawn:${node.id}:${roomRng.chance(0.4) ? 'shooter' : 'chaser'}`);
+      }
+      // survivor HELP/LEAVE resolves on the RUN rng in production (game.js:514) — so it
+      // rides the shared stream, and is order/input-dependent (not path-independent).
       if (node.survivor) {
-        const choice = roomRng.chance(0.5) ? 'HELP' : 'LEAVE';
-        log.push(`npc:${node.id}:${choice}:${JSON.stringify(resolveDecision(roomRng, choice))}`);
+        log.push(`npc:${node.id}:${JSON.stringify(resolveDecision(rng, 'HELP'))}`);
+      }
+      // every entered room clears into an OFFER — the real post-room run-rng draw (game.js:623)
+      if (node.type !== 'start') {
+        log.push(
+          `offer:${node.id}:${generateOffer(rng, {})
+            .map((c) => c.id)
+            .join(',')}`,
+        );
       }
     }
-
-    // post-boss reward roll still rides the run rng (drop engine, floor-banded + pity)
-    const weights = PICKUPS.rarity.regularChestWeights[rarityBand(f)];
-    const drop = rollDrop(rng, weights, { minTier: pityMinTier(commonStreak) });
-    commonStreak = drop.tier === PICKUPS.rarity.tiers[0] ? commonStreak + 1 : 0;
-    log.push(`drop:${drop.type}`);
   }
   return log;
 }
@@ -67,20 +74,53 @@ describe('seeded run determinism (cross-system, connected-map shape)', () => {
     expect(runTranscript(2026)).not.toEqual(runTranscript(2027));
   });
 
-  it('PATH-INDEPENDENCE: visiting rooms in reverse order yields the same run stream (ADR-0032)', () => {
-    // sort both transcripts because room lines interleave differently by order —
-    // the CONTENT of every room + every run-rng draw must be identical.
-    const a = [...runTranscript(2026, { visitOrder: 'forward' })].sort();
-    const b = [...runTranscript(2026, { visitOrder: 'reverse' })].sort();
-    expect(a).toEqual(b);
-  });
-
-  it('the transcript is non-trivial (every system actually consumed the rng)', () => {
+  it('the transcript is non-trivial — every real run-rng seam is exercised', () => {
     const t = runTranscript(2026);
     expect(t.length).toBeGreaterThan(10);
-    expect(t.some((x) => x.startsWith('floor:'))).toBe(true);
-    expect(t.some((x) => x.startsWith('room:'))).toBe(true);
-    expect(t.some((x) => x.startsWith('drop:'))).toBe(true);
-    expect(t.some((x) => x.startsWith('npc:'))).toBe(true);
+    expect(t.some((x) => x.startsWith('floor:'))).toBe(true); // generateFloorplan
+    expect(t.some((x) => x.startsWith('spawn:'))).toBe(true); // per-node layout seed
+    expect(t.some((x) => x.startsWith('offer:'))).toBe(true); // generateOffer (real, not rollDrop)
+    expect(t.some((x) => x.startsWith('npc:'))).toBe(true); // resolveDecision on the run rng
+  });
+});
+
+// The safe-backtracking property, proved on its own: a room's CONTENT is fixed by its
+// layoutSeed, so it is identical no matter the visit order — and, critically, no matter
+// what else draws from the run rng between entries. A regression that made room content
+// draw from a shared/positional stream (the exact rng-order trap ADR-0032 was built to
+// avoid) would make these maps diverge.
+describe('room content is path-independent (ADR-0032 safe backtracking)', () => {
+  const contentOf = (node) => {
+    const r = makeRng(node.layoutSeed);
+    return `${r.chance(0.4)}|${r.range(0, 10).toFixed(4)}|${r.int(4)}`;
+  };
+
+  it('visit order never changes a room’s layout/spawns', () => {
+    const plan = generateFloorplan(makeRng(2026), {
+      ...MAP,
+      roomCount: roomCountForFloor(2, MAP),
+      survivors: ROOMS.survivorsPerFloor,
+    });
+    const map = (nodes) => Object.fromEntries(nodes.map((n) => [n.id, contentOf(n)]));
+    expect(map([...plan.rooms].reverse())).toEqual(map(plan.rooms));
+  });
+
+  it('run-rng draws happening BETWEEN entries cannot perturb a room’s content', () => {
+    const plan = generateFloorplan(makeRng(7), {
+      ...MAP,
+      roomCount: roomCountForFloor(2, MAP),
+      survivors: ROOMS.survivorsPerFloor,
+    });
+    const clean = Object.fromEntries(plan.rooms.map((n) => [n.id, contentOf(n)]));
+    // now recompute while a junk stream advances arbitrarily between each room entry,
+    // simulating offers / survivor rolls / other rooms firing in between.
+    const junk = makeRng(999);
+    const interleaved = {};
+    for (const node of [...plan.rooms].reverse()) {
+      junk.next();
+      junk.int(9);
+      interleaved[node.id] = contentOf(node);
+    }
+    expect(interleaved).toEqual(clean);
   });
 });

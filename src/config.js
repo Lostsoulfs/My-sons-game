@@ -166,6 +166,10 @@ export const ROOMS = {
   obstaclesMin: 2, // rubble boxes
   obstaclesMax: 5,
   survivorsPerFloor: 2, // seeded survivor-room quota per floor (floorplan tags the rooms, ADR-0032)
+  // ADR-0032 spawn safety: connected rooms are entered from ANY side (N/S/E/W), so
+  // spawns must keep clear of the door you walk in through and you get a brief grace.
+  entryGrace: 1.0, // seconds of i-frames on room entry (no unfair contact hit if you spawn on a mob)
+  entryClearance: 6, // enemies/survivors never spawn within this radius of the entry point
 };
 
 // ---- progression: each floor is a CONNECTED room graph (ADR-0032, core/floorplan.js) ----
@@ -1132,7 +1136,7 @@ export const PICKUPS = {
 // ramps with floor depth so later floors are bigger journeys (the research's triple ramp:
 // rooms + mob difficulty + offer tiers together).
 export const MAP = {
-  gridSize: 11, // cells per side of the placement grid (never the bottleneck at our counts)
+  gridSize: 17, // cells per side — kept ≥ maxRooms so the straight-corridor fallback always fits exactly
   rejectChance: 0.5, // the Isaac coin-flip reject — where the organic floor shapes come from
   baseRooms: 7, // floor 0 room count (incl. start + boss)
   roomsPerFloor: 1.5, // extra rooms per floor depth…

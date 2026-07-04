@@ -25,16 +25,26 @@ const SURVIVOR_NAMES = [
   'a shopkeeper',
 ];
 
-/** find a spot in the upper part of the arena that isn't inside a wall */
-function findSpot(rng, walls, radius) {
+/**
+ * Find a spot that isn't inside a wall and isn't on top of the player's entry.
+ * ADR-0032: rooms are entered from ANY side (N/S/E/W), so a spawn must clear the
+ * `avoid` point (the entry) by `avoid.r` — otherwise a mob can materialise on a
+ * player walking in and land a free contact hit before they can dodge.
+ */
+function findSpot(rng, walls, radius, avoid = null) {
   const hw = ARENA.width / 2 - 2;
   const hd = ARENA.depth / 2;
+  const clear = (x, z) => {
+    if (walls.some((b) => circleVsBox(x, z, radius + 0.5, b))) return false;
+    if (avoid && Math.hypot(x - avoid.x, z - avoid.z) < avoid.r + radius) return false;
+    return true;
+  };
   for (let tries = 0; tries < 30; tries++) {
     const x = rng.range(-hw, hw);
-    const z = rng.range(-hd + 3, 2); // upper / middle, away from the usual entry
-    if (!walls.some((b) => circleVsBox(x, z, radius + 0.5, b))) return { x, z };
+    const z = rng.range(-hd + 3, hd - 3); // anywhere but the very edges (entries live there)
+    if (clear(x, z)) return { x, z };
   }
-  return { x: 0, z: 0 }; // dead center — never a door gap (ADR-0032 entries are at edges)
+  return { x: 0, z: 0 }; // dead center — never a door gap NOR an entry (they're all at edges)
 }
 
 /**
@@ -42,10 +52,13 @@ function findSpot(rng, walls, radius) {
  * monsters + maybe a survivor.
  * @param {object} game
  * @param {{floorIndex:number, isBossRoom:boolean, depth:number, survivor?:boolean,
- *          def:object, diff:number}} desc built by game.js from the floorplan node
+ *          def:object, diff:number, entry?:{x:number,z:number}}} desc built by game.js
+ *   from the floorplan node (`entry` = where the players walked in, kept spawn-clear)
  * @param {{range,chance,pick,int}} rng the node's LAYOUT rng — never the run rng
  */
 export function populateRoom(game, desc, rng) {
+  // keep spawns off the door the players walked in through (ADR-0032 spawn safety)
+  const avoid = desc.entry ? { x: desc.entry.x, z: desc.entry.z, r: ROOMS.entryClearance } : null;
   // monsters reflect the floor's boss (theme + matching colors)
   const theme = { boss: desc.def.boss, palette: desc.def.palette };
 
@@ -77,7 +90,7 @@ export function populateRoom(game, desc, rng) {
   for (let i = 0; i < count; i++) {
     const useShooter = desc.depth + 1 >= ROOMS.shooterFromRoom && rng.chance(0.4);
     const type = useShooter ? 'shooter' : 'chaser';
-    const spot = findSpot(rng, game.walls, ENEMY[type].radius);
+    const spot = findSpot(rng, game.walls, ENEMY[type].radius, avoid);
     game.addEnemy(new Enemy(game.scene, type, spot.x, spot.z, theme));
   }
 
@@ -85,7 +98,7 @@ export function populateRoom(game, desc, rng) {
   // replaces the old fixed room-index whitelist)
   if (desc.survivor) {
     for (let i = 0; i < NPC.perRoom; i++) {
-      const spot = findSpot(rng, game.walls, 1);
+      const spot = findSpot(rng, game.walls, 1, avoid);
       const name = rng.pick(SURVIVOR_NAMES);
       game.npcs.push(new Npc(game.scene, spot.x, spot.z, name));
     }

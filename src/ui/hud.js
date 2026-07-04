@@ -68,6 +68,10 @@ export const hud = {
       }
       div.style.display = 'block';
       div.className = `mm-cell mm-${c.kind}`;
+      // size AND position from config.MINIMAP.cell (single source of truth — the CSS no
+      // longer hardcodes a width/height that could silently drift from the layout math)
+      div.style.width = `${cell}px`;
+      div.style.height = `${cell}px`;
       div.style.left = `${c.gx * (cell + gap)}px`;
       div.style.top = `${c.gy * (cell + gap)}px`;
     }
