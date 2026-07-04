@@ -34,6 +34,7 @@ import { Pickup } from './entities/pickups.js';
 import { rollDrop } from './core/drops.js';
 import { generateOffer } from './core/offers.js';
 import { Particles } from './systems/particles.js';
+import { WeaponFX } from './systems/weaponfx.js';
 import { Juice } from './systems/juice.js';
 import { buildRoom } from './systems/rooms.js';
 import { populateRoom } from './systems/spawner.js';
@@ -96,6 +97,7 @@ export class Game {
     this.particles = new Particles(this.scene);
     this.juice = new Juice();
     this.bullets = new Bullets(this.scene);
+    this.weaponfx = new WeaponFX(this.scene, this.particles); // pooled muzzle/trail/impact FX
     this.hazards = new Hazards(this.scene);
     this.overlays = new Overlays(this.scene); // boss telegraph rings + opt-in hitbox overlay
     // players are created in startRun (which the start menu calls)
@@ -343,6 +345,7 @@ export class Game {
     }
 
     this.particles.update(dt);
+    this.weaponfx.update(dt);
     this.juice.update(dt);
     this._updateCamera(dt);
   }

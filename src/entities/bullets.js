@@ -51,6 +51,9 @@ export class Bullets {
         turnRate: 0,
         bounces: 0,
         hitSet: new Set(),
+        fx: null, // weapon FX descriptor (weaponFxDerive) — drives trail/muzzle/impact look
+        fxIntensity: 1, // rarity scalar for the juice
+        _trailT: 0, // throttle timer for per-frame trail emission
       });
     }
     this._next = 0;
@@ -72,6 +75,8 @@ export class Bullets {
       life: o.life,
       scale: o.scale,
       color: o.color,
+      fx: o.fx,
+      fxIntensity: o.fxIntensity,
     });
   }
 
@@ -121,6 +126,9 @@ export class Bullets {
     b.turnRate = o.turnRate ?? 0;
     b.bounces = o.bounces ?? 0;
     b.hitSet.clear();
+    b.fx = o.fx || null;
+    b.fxIntensity = o.fxIntensity ?? 1;
+    b._trailT = 0;
     b.mesh.material = this._matFor(team, o);
     b.mesh.scale.setScalar(o.scale ?? (o.explosive ? 1.9 : 1));
     b.mesh.position.set(x, 1.0, z);
@@ -215,6 +223,7 @@ export class Bullets {
             continue;
           }
           hit.hurt(b.damage, game, normalize(b.vx, b.vz)); // shove along the bullet's travel (B7)
+          game.weaponfx?.impact(b.x, b.z, 'enemy', b.fx, b.fxIntensity);
           if (b.pierce > 0) {
             b.pierce -= 1;
             b.hitSet.add(hit); // don't re-hit the same enemy while passing through
@@ -235,6 +244,15 @@ export class Bullets {
         if (hitPlayer) {
           this._kill(b);
           continue;
+        }
+      }
+
+      // pooled tracer/energy trail behind the bullet (player guns only; throttled)
+      if (b.team === 'player' && b.fx && b.fx.trail !== 'none' && game.weaponfx) {
+        b._trailT -= dt;
+        if (b._trailT <= 0) {
+          game.weaponfx.trailFor(b);
+          b._trailT = GRAPHICS.vfx?.trail?.interval ?? 0.016;
         }
       }
 
@@ -276,7 +294,7 @@ export class Bullets {
         e.hurt(b.damage, game, normalize(e.x - b.x, e.z - b.z)); // shove outward from the blast (B7)
       }
     }
-    game.particles.burst(b.x, b.z, 26, 0xff7722);
+    game.weaponfx?.impact(b.x, b.z, 'explode', b.fx, b.fxIntensity); // the orange blast burst
     game.juice.addTrauma(game.JUICE.traumaOnExplode);
     audio.play('explosion');
   }
@@ -285,9 +303,7 @@ export class Bullets {
   // particle system; gated by config.GRAPHICS.vfx so it's free to turn off. Bloom (ADR-0025)
   // makes the warm spark pop. No-op when impactSparks is off.
   _wallSpark(b, game) {
-    const vfx = GRAPHICS.vfx;
-    if (!vfx?.impactSparks || !game.particles) return;
-    game.particles.burst(b.x, b.z, vfx.sparkCount, vfx.sparkColor);
+    game.weaponfx?.impact(b.x, b.z, 'wall', b.fx, b.fxIntensity);
   }
 
   _kill(b) {
