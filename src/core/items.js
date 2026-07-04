@@ -100,6 +100,15 @@ export const ITEMS = [
     tags: ['offense', 'feat'],
     effect: { kind: 'globalDamage', mult: 1.3 },
   },
+  {
+    // ADR-0030 LUCK (positive dial): biases future offer tiers UP, capped at OFFERS.luck.maxStacks.
+    id: 'LUCK_UP',
+    name: "Rabbit's Foot",
+    category: 'upgrade',
+    tier: 'rare',
+    tags: ['luck'],
+    effect: { kind: 'luck' },
+  },
 
   // --- weapon mods (reuse the existing bullet flags) ---
   {
@@ -227,6 +236,8 @@ export function blurbFor(item, ctx = {}) {
     }
     case 'globalDamage':
       return `+${Math.round((e.mult - 1) * 100)}% damage (all weapons)`;
+    case 'luck':
+      return '+1 luck — richer offers ahead';
     case 'maxLife':
       return `+${e.amount} max life`;
     case 'heal':

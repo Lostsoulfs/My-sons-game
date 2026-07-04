@@ -81,6 +81,7 @@ export class Player {
     this._up = {
       speed: bl.speed,
       damageReduction: bl.damageReduction,
+      luck: 0, // ADR-0030 positive dial — biases offer tiers up (capped in the offer engine)
     };
     this.guardCharges = bl.guard; // permanent guard charges from the meta-layer (added to offer charges)
     this._drCarry = 0; // banked fractional damage-reduction (core/defense.js carry accumulator)
@@ -89,6 +90,7 @@ export class Player {
     this._weaponUpgrades = {};
     this._globalDmgMul = 1; // rare global max-damage reward (multiplies final shot damage, uncapped)
     this.offerRecent = []; // recently-offered item ids → anti-repeat (OFFERS.recentMemory)
+    this.offerSeenWeapons = {}; // weapon id → times OFFERED this run (see-it-once decay, ADR-0030)
     this.offerCommonStreak = 0; // consecutive commons TAKEN → drives offer pity (per player)
     this.slots = ['pistol']; // weapons you carry; slotsUnlocked is the capacity
     this.slotIndex = 0;
@@ -351,15 +353,15 @@ export class Player {
     this._charge = 0;
     if (aim.x === 0 && aim.z === 0) return;
     const lerp = (a, b) => a + (b - a) * f;
-    const m = this._mods; // weapon-mod offers stack onto the charged shot too
+    const m = this._wUp(); // per-weapon mod PICK-COUNTS (ADR-0030) stack onto the charged shot too
     game.weaponfx?.muzzle(this.x, this.z, aim, this._weaponFx, this._fxIntensity * (0.8 + 0.6 * f));
     game.bullets.spawnPlayer(this.x, this.z, aim.x, aim.z, {
-      damage: lerp(c.minDamage, c.maxDamage) * this.damageMul,
-      speed: lerp(c.minSpeed, c.maxSpeed) * (1 + m.bulletSpeed),
-      pierce: Math.round(lerp(0, c.pierce)) + m.pierce,
-      bounces: m.bounces,
+      damage: lerp(c.minDamage, c.maxDamage) * this.damageMul * this._globalDmgMul,
+      speed: lerp(c.minSpeed, c.maxSpeed) * (1 + m.bulletSpeed * WEAPON_MODS.bulletSpeed),
+      pierce: Math.round(lerp(0, c.pierce)) + m.pierce * WEAPON_MODS.pierce,
+      bounces: m.bounces * WEAPON_MODS.bounces,
       explosive: m.explodeRadius > 0,
-      explodeRadius: m.explodeRadius,
+      explodeRadius: m.explodeRadius * WEAPON_MODS.explodeRadius,
       scale: lerp(1, c.maxScale),
       color: c.color,
       fx: this._weaponFx,
@@ -492,15 +494,23 @@ export class Player {
       weaponExplosive: !!def.explosive,
       weaponFast: (def.cooldown ?? 1) <= OFFERS.fastWeaponCd,
       ownedCount: this.slots.length,
+      luck: this._up.luck, // positive dial (the engine clamps it)
+      seenWeapons: this.offerSeenWeapons, // see-it-once weapon decay
       commonStreak: this.offerCommonStreak,
     };
   }
 
-  /** remember the ids just offered (anti-repeat ring buffer, capped at OFFERS.recentMemory). */
+  /** remember the ids just offered (anti-repeat ring buffer, capped at OFFERS.recentMemory).
+   *  Weapons ALSO get a permanent see-it-once count — each sighting halves their future weight. */
   noteOffered(ids) {
     this.offerRecent.push(...ids);
     if (this.offerRecent.length > OFFERS.recentMemory) {
       this.offerRecent.splice(0, this.offerRecent.length - OFFERS.recentMemory);
+    }
+    for (const id of ids) {
+      if (itemById(id)?.category === 'weapon') {
+        this.offerSeenWeapons[id] = (this.offerSeenWeapons[id] ?? 0) + 1;
+      }
     }
   }
 
@@ -543,6 +553,9 @@ export class Player {
       }
       case 'globalDamage': // rare top-tier: a permanent damage multiplier across ALL weapons
         this._globalDmgMul *= e.mult;
+        break;
+      case 'luck': // ADR-0030 positive dial (global, like speed — it buffs the run, not the gun)
+        this._up.luck++;
         break;
       case 'weapon':
         this.addWeapon(e.weapon);

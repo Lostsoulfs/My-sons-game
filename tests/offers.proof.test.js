@@ -143,4 +143,27 @@ describe('ADR-0030 weapon-aware gating', () => {
     const many = has('SHOTGUN', { ownedCount: 2 }, 300);
     expect(many).toBeLessThan(one);
   });
+
+  it('LUCK biases the tier roll up: fewer commons at max luck', () => {
+    const commons = (luck, seed) => {
+      const rng = makeRng(seed);
+      let n = 0;
+      for (let i = 0; i < 4000; i++) if (generateOffer(rng, { luck })[0].tier === 'common') n++;
+      return n;
+    };
+    expect(commons(OFFERS.luck.maxStacks, 400)).toBeLessThan(commons(0, 400));
+  });
+
+  it('LUCK is hard-capped: stacks past maxStacks change nothing (same seed, same cards)', () => {
+    const run = (luck) => generateOffer(makeRng(77), { luck });
+    expect(run(OFFERS.luck.maxStacks)).toEqual(run(999));
+  });
+
+  it('see-it-once: a weapon offered before shows up less and less', () => {
+    const fresh = has('SHOTGUN', {}, 500);
+    const seenOnce = has('SHOTGUN', { seenWeapons: { SHOTGUN: 1 } }, 500);
+    const seenLots = has('SHOTGUN', { seenWeapons: { SHOTGUN: 4 } }, 500);
+    expect(seenOnce).toBeLessThan(fresh);
+    expect(seenLots).toBeLessThan(seenOnce);
+  });
 });

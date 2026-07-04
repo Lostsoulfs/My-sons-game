@@ -1140,6 +1140,13 @@ export const OFFERS = {
   // once you already hold more than one gun, weapon-category offers get this extra down-weight
   // (invest in what you have — NEW weapons get rarer after the first pick).
   extraWeaponDecay: 0.4,
+  // ADR-0030 LUCK (the positive dial): each stack multiplies the rare+ tier weights on the offer
+  // roll. HARD-CAPPED so luck biases but never guarantees. (The Curse/danger dial — negative luck
+  // spawning ambushes — ships with the connected-map ADR, where roaming spawns live.)
+  luck: { maxStacks: 9, tierWeightBonus: 0.12 },
+  // see-it-once (Isaac-style): every time a WEAPON is offered, its future offer weight is
+  // multiplied by this — offers narrow over a run instead of repeating the same guns.
+  seenWeaponDecay: 0.5,
 };
 
 // ---- B9: defensive upgrades (offered, not dropped) ----

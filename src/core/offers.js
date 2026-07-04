@@ -33,11 +33,13 @@ export function pityFloorTier(commonStreak) {
   return floor;
 }
 
-/** roll a tier by weight, never below `minTier`, skipping empty tiers. */
-function rollTier(rng, minTier) {
+/** roll a tier by weight, never below `minTier`, skipping empty tiers. `luck` (ADR-0030, already
+ *  clamped by the caller) multiplies every rare+ tier's weight — biases up, never guarantees. */
+function rollTier(rng, minTier, luck = 0) {
   const minIdx = minTier ? Math.max(0, tierIndex(minTier)) : 0;
+  const luckMul = 1 + luck * OFFERS.luck.tierWeightBonus;
   const entries = TIERS.filter((t, i) => i >= minIdx && (itemsByTier[t]?.length ?? 0) > 0).map(
-    (t) => ({ value: t, weight: OFFERS.tierWeights[t] ?? 0 }),
+    (t) => ({ value: t, weight: (OFFERS.tierWeights[t] ?? 0) * (tierIndex(t) >= 1 ? luckMul : 1) }),
   );
   return weightedChoice(rng, entries);
 }
@@ -60,6 +62,7 @@ function candidateEntries({
   avoidCat,
   blocked,
   weaponDecay = 1,
+  seenWeapons,
 }) {
   const entries = [];
   for (const t of pools) {
@@ -69,7 +72,11 @@ function candidateEntries({
       if (blocked?.has(it.id)) continue; // ADR-0030: maxed stats + gated mods are out of the pool
       if (avoidCat && it.category === avoidCat) continue;
       let w = itemWeight(it, tierW, recent, owned);
-      if (it.category === 'weapon') w *= weaponDecay; // extra down-weight for a 2nd+ weapon (ADR-0030)
+      if (it.category === 'weapon') {
+        w *= weaponDecay; // extra down-weight for a 2nd+ weapon (ADR-0030)
+        const seen = seenWeapons?.[it.id] ?? 0; // see-it-once: each past offer halves future weight
+        if (seen > 0) w *= OFFERS.seenWeaponDecay ** seen;
+      }
       entries.push({ value: it, weight: w });
     }
   }
@@ -83,10 +90,10 @@ function candidateEntries({
  */
 function pickItem(
   rng,
-  { tier = null, chosen, recent, owned, avoidCat = null, blocked, weaponDecay },
+  { tier = null, chosen, recent, owned, avoidCat = null, blocked, weaponDecay, seenWeapons },
 ) {
   const pools = tier ? [tier] : TIERS;
-  const opts = { pools, spanning: !tier, chosen, recent, owned, blocked, weaponDecay };
+  const opts = { pools, spanning: !tier, chosen, recent, owned, blocked, weaponDecay, seenWeapons };
   let entries = candidateEntries({ ...opts, avoidCat });
   if (!entries.length) entries = candidateEntries({ ...opts, avoidCat: null });
   return weightedChoice(rng, entries);
@@ -99,14 +106,17 @@ function overflowCategory(catCount) {
 }
 
 /** draw one card's item: variety-aware, with the pity floor applied to the first card. */
-function drawCard(rng, { index, floor, chosen, catCount, recent, owned, blocked, weaponDecay }) {
+function drawCard(
+  rng,
+  { index, floor, chosen, catCount, recent, owned, blocked, weaponDecay, seenWeapons, luck },
+) {
   const avoidCat = overflowCategory(catCount);
-  const gate = { blocked, weaponDecay };
+  const gate = { blocked, weaponDecay, seenWeapons };
   let item;
   if (avoidCat) {
     item = pickItem(rng, { chosen, recent, owned, avoidCat, ...gate }); // span tiers to reach another category
   } else {
-    const tier = rollTier(rng, index === 0 ? floor : null) ?? rollTier(rng, null);
+    const tier = rollTier(rng, index === 0 ? floor : null, luck) ?? rollTier(rng, null, luck);
     item = tier ? pickItem(rng, { tier, chosen, recent, owned, ...gate }) : null;
   }
   return item ?? pickItem(rng, { chosen, recent, owned, ...gate }); // last-ditch: any not-chosen item
@@ -140,6 +150,9 @@ export function generateOffer(rng, ctx = {}) {
   if ((ws.FIRE_RATE_UP ?? 0) >= cap) blocked.add('FIRE_RATE_UP');
   if (ctx.weaponExplosive || ctx.weaponFast) blocked.add('MOD_BLAST');
   const weaponDecay = (ctx.ownedCount ?? 0) > 1 ? (OFFERS.extraWeaponDecay ?? 1) : 1;
+  // LUCK (positive dial, ADR-0030): clamped here ONCE so nothing downstream can exceed the cap
+  const luck = Math.min(ctx.luck ?? 0, OFFERS.luck.maxStacks);
+  const seenWeapons = ctx.seenWeapons ?? null; // id -> times offered (see-it-once decay)
 
   const chosen = new Set();
   const catCount = {};
@@ -154,6 +167,8 @@ export function generateOffer(rng, ctx = {}) {
       owned,
       blocked,
       weaponDecay,
+      seenWeapons,
+      luck,
     });
     if (!item) break; // registry exhausted (won't happen at the current size)
     chosen.add(item.id);
