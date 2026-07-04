@@ -130,7 +130,23 @@ export class Bullets {
     b.fxIntensity = o.fxIntensity ?? 1;
     b._trailT = 0;
     b.mesh.material = this._matFor(team, o);
-    b.mesh.scale.setScalar(o.scale ?? (o.explosive ? 1.9 : 1));
+    // shape by flavor: PLAYER shots stretch along their travel direction — beams read as long
+    // rods, energy bolts as short rods, ballistic tracers slightly stretched. ENEMY bullets stay
+    // round dots (bullet-hell readability: the threats must be instantly parseable).
+    const s = o.scale ?? (o.explosive ? 1.9 : 1);
+    const st = GRAPHICS.vfx?.bulletStretch;
+    b.stretched = !!(st && team === 'player' && o.fx);
+    if (b.stretched) {
+      let stretch = st.tracer ?? 1; // ballistic default: a slight tracer stretch
+      if (o.fx.trail === 'beam') stretch = st.beam ?? 1;
+      else if (o.fx.kind === 'energy') stretch = st.bolt ?? 1;
+      const w = s * (st.squish ?? 0.8);
+      b.mesh.scale.set(w, w, s * stretch);
+      b.mesh.rotation.y = Math.atan2(b.vx, b.vz); // local +Z = travel (streak convention)
+    } else {
+      b.mesh.scale.setScalar(s);
+      b.mesh.rotation.y = 0;
+    }
     b.mesh.position.set(x, 1.0, z);
     b.mesh.visible = true;
   }
@@ -257,6 +273,8 @@ export class Bullets {
       }
 
       b.mesh.position.set(b.x, 1.0, b.z);
+      // keep a stretched shot pointing where it flies (homing curves, bouncers flip)
+      if (b.stretched) b.mesh.rotation.y = Math.atan2(b.vx, b.vz);
     }
   }
 
