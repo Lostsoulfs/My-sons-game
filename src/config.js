@@ -634,7 +634,16 @@ export const GRAPHICS = {
     // `pool` caps memory — when it saturates (a hose), trails just get shorter (graceful).
     trail: { pool: 160, life: 0.09, interval: 0.016, width: 0.16, length: 0.9 },
     muzzle: { sparks: 3, color: 0xffe0a0 }, // barrel flash (warm; energy guns tint to the bullet)
-    impact: { sparks: 5, scorchColor: 0x88ffcc }, // enemy-hit spark / energy scorch
+    impact: {
+      sparks: 5, // enemy-hit spark count
+      scorchColor: 0x88ffcc, // energy scorch tint
+      // chain explosions: an 'explode' impact queues a few smaller delayed bursts around it
+      // (VISUAL only — no damage, one level deep, skipped under reducedEffects)
+      secondaries: { count: 3, delayMin: 0.05, delayMax: 0.16, radius: 2.2, scale: 0.45 },
+    },
+    // player-shot SHAPE by flavor: stretch along travel (beam = long rod, bolt = short rod,
+    // tracer = slight). Enemy bullets stay round dots — bullet-hell readability comes first.
+    bulletStretch: { beam: 3.4, bolt: 2.1, tracer: 1.5, squish: 0.8 },
   },
   // real-time shadow maps (ADR-0026 Phase B — src/core/scene.js). ONE shadow-casting
   // light (the warm key); a tight orthographic frustum fit to the ARENA. Bullets, eyes,
