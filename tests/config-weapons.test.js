@@ -65,6 +65,15 @@ describe('WEAPONS config invariants', () => {
   it('homing weapon has a positive turnRate', () => {
     expect(WEAPONS.homing.turnRate).toBeGreaterThan(0);
   });
+
+  it('spin-up weapons ramp from a slower startCd down to a faster endCd > 0', () => {
+    for (const [name, w] of entries) {
+      if (!w.spinUp) continue;
+      expect(w.spinUp.startCd, `${name}.spinUp.startCd`).toBeGreaterThan(w.spinUp.endCd);
+      expect(w.spinUp.endCd, `${name}.spinUp.endCd`).toBeGreaterThan(0);
+      expect(w.spinUp.rampTime, `${name}.spinUp.rampTime`).toBeGreaterThan(0);
+    }
+  });
 });
 
 describe('PROGRESSION config invariants', () => {

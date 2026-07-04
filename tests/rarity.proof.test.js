@@ -20,9 +20,9 @@ describe('rarity tagging is consistent', () => {
     }
   });
 
-  it('every weapon is rare or epic (commons are the heal + stat gems)', () => {
+  it('every droppable weapon has a tier in the B8 ladder (common light guns + stat gems, up to epic)', () => {
     for (const w of WEAPON_TYPES) {
-      expect(['rare', 'epic']).toContain(rarityOf(w));
+      expect(R.tiers).toContain(rarityOf(w)); // common | rare | epic — ultra guns are offer-only, not here
     }
   });
 

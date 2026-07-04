@@ -136,6 +136,22 @@ export const ITEMS = [
     ['RAILGUN', 'Railgun', 'epic', ['pierce', 'precise']],
     ['CHARGE', 'Charge Cannon', 'epic', ['burst', 'precise']],
     ['ORBITAL', 'Orbital Blade', 'epic', ['crowd', 'defensive']],
+    // --- 1950s matrix (rarity ⟂ flavor). `real`/`energy` tags carry flavor for future scoring. ---
+    // ULTRA weapons (minigun, davycrockett) are OFFER-ONLY: here with tier:'ultra', but deliberately
+    // absent from PICKUPS.rarity.itemRarity + entities/pickups.js WEAPON_TYPES (the B8 drop engine).
+    ['UZI', 'Grease Gun', 'common', ['rapid', 'real']],
+    ['CARBINE', 'M1 Carbine', 'common', ['precise', 'real']],
+    ['LASERPISTOL', 'Laser Pistol', 'common', ['energy']],
+    ['GARAND', 'M1 Garand', 'rare', ['precise', 'pierce', 'real']],
+    ['THOMPSON', 'Thompson', 'rare', ['rapid', 'real']],
+    ['PPSH', 'PPSh-41', 'rare', ['rapid', 'spray', 'real']],
+    ['BAR', 'BAR', 'rare', ['rapid', 'real']],
+    ['BROWNING', 'Browning M1919', 'epic', ['rapid', 'real']],
+    ['MASER', 'MASER Beam', 'epic', ['pierce', 'energy']],
+    ['RAYGUN', 'Atomic Ray Gun', 'epic', ['energy', 'pierce']],
+    ['PLASMA', 'Plasma Launcher', 'epic', ['aoe', 'energy']],
+    ['MINIGUN', 'Minigun', 'ultra', ['rapid', 'real']],
+    ['DAVYCROCKETT', 'Davy Crockett', 'ultra', ['aoe', 'energy']],
   ].map(([id, name, tier, tags]) => ({
     id,
     name,

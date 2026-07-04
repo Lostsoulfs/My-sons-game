@@ -44,12 +44,17 @@ describe('registry integrity', () => {
     expect(itemById('GREATER_GUARD').tier).toBe('ultra');
   });
 
-  it('every weapon item maps to a real weapon key and is rare or epic', () => {
-    for (const it of itemsByCategory.weapon) {
+  it('every weapon item maps to a real weapon key with a valid tier, spanning common..ultra', () => {
+    const weapons = itemsByCategory.weapon;
+    for (const it of weapons) {
       expect(it.effect.kind).toBe('weapon');
       expect(typeof it.effect.weapon).toBe('string');
-      expect(['rare', 'epic']).toContain(it.tier);
+      expect(TIERS).toContain(it.tier);
     }
+    // rarity ⟂ flavor: weapons deliberately span the whole ladder (a common laser, an ultra minigun)
+    const tiers = new Set(weapons.map((w) => w.tier));
+    expect(tiers.has('common')).toBe(true);
+    expect(tiers.has('ultra')).toBe(true);
   });
 });
 
@@ -86,10 +91,15 @@ describe('no-drift: weapon items stay in lockstep with the B8 drop engine', () =
     }
   });
 
-  it('each weapon tier equals PICKUPS.rarity.itemRarity[id] (no drift)', () => {
+  it('non-ultra weapon tiers equal PICKUPS.rarity.itemRarity[id]; ultra weapons are offer-only', () => {
     for (const it of itemsByCategory.weapon) {
-      expect(PICKUPS.rarity.itemRarity[it.id]).toBeDefined(); // a missing entry must fail, not false-pass
-      expect(it.tier).toBe(PICKUPS.rarity.itemRarity[it.id]);
+      if (it.tier === 'ultra') {
+        // ULTRA weapons are offer-only — they must NOT appear in the B8 ground/chest drop table
+        expect(PICKUPS.rarity.itemRarity[it.id]).toBeUndefined();
+      } else {
+        expect(PICKUPS.rarity.itemRarity[it.id]).toBeDefined(); // a missing entry must fail, not false-pass
+        expect(it.tier).toBe(PICKUPS.rarity.itemRarity[it.id]);
+      }
     }
   });
 });
