@@ -9,6 +9,31 @@ decisions in [`docs/adr/`](adr/).
 > **Light by design (ADR-0005).** This is a fun-first co-designed game; keep the backlog short and
 > honest. Don't pad it with process for its own sake.
 
+## Phase 5 direction (2026-07-03, Scott)
+
+Being **built this session** (see the weapon-economy ADR): the in-run economy (per-weapon,
+**per-stat** upgrades capped at 9 _each_ — not a freeform total; no ground weapon drops, weapons
+only via the offer tree; offer rarity ramps by progression; explosive/pierce mod gating so nothing
+one-shots a whole screen; a **Luck** stat; a rare global max-damage reward), the **co-op death rule**
+(a player downed when a room clears forfeits that room's upgrade), **hearts** (boss on-kill + very
+rare mob +1), and restoring the **graphics ceiling** (5060 confirmed, 165 fps at ultra).
+
+Parked below — the larger directions that follow (each becomes an ADR when picked up):
+
+- [ ] **Connected map per boss (MAJOR — expands "Full floor layout" below).** Replace the linear
+      forward-only rooms with a **connected map for each boss** you move back and forth through:
+      re-enterable areas, roaming mobs, **mini-bosses**, **chance-based mob spawns**, and
+      **negative-luck ambushes** (a bad luck roll spawns extra enemies). Needs web research on the
+      best format (Isaac-style connected floor + backtracking, minimap, secrets/shortcuts) and an ADR.
+- [ ] **Fusion system (the per-weapon "10th" upgrade).** Combine a weapon with a movable passive —
+      e.g. a **laser pistol + orbital blades** — into one UPGRADEABLE fused item, so the passive's
+      kills also earn per-stat upgrades. Ties directly to "Rework the Orbital Blade → passive" below.
+- [ ] **Luck is two-sided.** Positive luck biases drop/offer rarity (already parked); **negative**
+      luck spawns extra enemies / ambushes. Fold both into the single Luck stat.
+- [ ] **Single fixed difficulty.** ONE base difficulty (no player-facing selector); extra modes
+      (Endless ~5× ramp, score-based NG+) add modifiers. Perm upgrades: diminishing returns +
+      breakpoints, deliberately slow (can't be maxed in a few playthroughs).
+
 ## Gameplay notes (2026-06-23, Scott — raw observations, not prioritized)
 
 > Dated raw notes from Scott. Overlaps with existing items are noted inline. Promote to ROADMAP when

@@ -8,7 +8,7 @@
 // =====================================================================
 
 import * as THREE from 'three';
-import { ENEMY, BULLET, PALETTE, PARTICLES, DIFFICULTY, FEEL } from '../config.js';
+import { ENEMY, BULLET, PALETTE, PARTICLES, DIFFICULTY, FEEL, PICKUPS } from '../config.js';
 import { hardnessFacet } from '../core/scaling.js';
 import { getModel } from '../core/assets.js';
 import { loadAnimated } from '../core/animModel.js';
@@ -229,6 +229,9 @@ export class Enemy {
     game.juice.hitStop(game.JUICE.hitStopOnKill);
     audio.play('kill');
     if (this.onDeath) this.onDeath(this, game); // e.g. puffball -> poison pool
+    // rare mob heart drop (+1) — seeded (ADR-0013) so runs stay reproducible. Bosses guarantee a
+    // HEAL separately; this is the "lucky" mob heal (skill dominates, luck is the small spice).
+    if (game.rng.chance(PICKUPS.mobHeartDropRate)) game.spawnPickup('HEART', this.x, this.z);
     this.anim?.dispose(); // free the GLB AnimationMixer for animated minions (no leak)
     this.scene.remove(this.mesh);
   }

@@ -18,6 +18,8 @@ function shapeFor(type, weapon) {
   switch (type) {
     case 'HEAL':
       return new THREE.TetrahedronGeometry(0.55);
+    case 'HEART':
+      return new THREE.TetrahedronGeometry(0.4); // a smaller heal-shape reads as "+1"
     case 'DAMAGE_UP':
       return new THREE.OctahedronGeometry(0.5);
     case 'FIRE_RATE_UP':
@@ -56,6 +58,7 @@ export const WEAPON_TYPES = [
 
 const LOOK = {
   HEAL: { color: 0xff3b6b, label: '+2 HEARTS', weapon: false },
+  HEART: { color: 0xff6b8f, label: '+1 HEART', weapon: false },
   DAMAGE_UP: { color: 0xff8a3b, label: 'DAMAGE UP', weapon: false },
   FIRE_RATE_UP: { color: 0xffe24a, label: 'FASTER SHOTS', weapon: false },
   SPEED_UP: { color: 0x49b3ff, label: 'SPEED UP', weapon: false },
@@ -134,9 +137,9 @@ export class Pickup {
       player.addWeapon(this.type.toLowerCase());
       audio.play('weapon');
     } else {
-      // only HEAL needs a magnitude now; the stat UPs add a stack (see player.js)
-      const mag = this.type === 'HEAL' ? PICKUPS.healAmount : 0;
-      player.applyEffect(this.type, mag, game);
+      // the two heal types carry a magnitude; the stat UPs add a stack (see player.js)
+      const HEAL_MAG = { HEAL: PICKUPS.healAmount, HEART: PICKUPS.mobHeartAmount };
+      player.applyEffect(this.type, HEAL_MAG[this.type] ?? 0, game);
       audio.play('pickup');
     }
     hud.toast(look.label, true);
