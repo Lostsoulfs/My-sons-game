@@ -1110,6 +1110,7 @@ export const PICKUPS = {
   // DAMAGE_UP / FIRE_RATE_UP / SPEED_UP each add ONE stack; the stat is recomputed from the
   // diminishing-returns curve (UPGRADES + core/scaling.js), so there are no per-pickup step sizes.
   healAmount: 2, // hearts restored by a HEAL pickup
+  bossHealSpawn: { x: -2, z: 0 }, // where the guaranteed post-boss HEAL lands (ADR-0030 boss reward)
 };
 
 // ---- B9: room-clear upgrade OFFER screen (pick 1 of 3) ----

@@ -10,7 +10,17 @@
 // revives when the room is cleared; Game Over only on a full wipe.
 // =====================================================================
 
-import { CAMERA, JUICE, FEEL, ARENA, CAPS, PALETTE, MENU_CURSOR, SAVES } from './config.js';
+import {
+  CAMERA,
+  JUICE,
+  FEEL,
+  ARENA,
+  CAPS,
+  PALETTE,
+  MENU_CURSOR,
+  SAVES,
+  PICKUPS,
+} from './config.js';
 import { State } from './states.js';
 import { makeRng } from './core/rng.js';
 import { floorInfo, nextIsBoss, resolveDeath, weaponSlotsForBosses } from './core/progression.js';
@@ -444,7 +454,8 @@ export class Game {
       // checkpoint: respawn at the next floor if you die from here on
       if (!info.isLastRoom) this.checkpointRoom = this.roomIndex + 1;
       hud.banner(info.isLastRoom ? 'BOSS DOWN — FINAL EXIT!' : 'BOSS DOWN — CHECKPOINT SAVED!');
-      this.spawnPickup('HEAL', -2, 0); // a boss always heals you — NO more ground weapon chest (ADR-0030)
+      // a boss always heals you — NO more ground weapon chest (ADR-0030); spot is config-tunable
+      this.spawnPickup('HEAL', PICKUPS.bossHealSpawn.x, PICKUPS.bossHealSpawn.z);
       if (info.isLastRoom) {
         // final boss: open the exit straight away, no offer (the run is ending)
         this.room.openDoor();
