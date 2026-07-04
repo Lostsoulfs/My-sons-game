@@ -436,9 +436,17 @@ export class Game {
   }
 
   _onRoomClear() {
-    // co-op: revive any downed teammate now that it's safe
+    // co-op: a teammate who was DOWN when the room cleared FORFEITS this room's upgrade — you
+    // can't suicide to skim offers off your partner's kills (anti-farm, keeps 2P honest). Capture
+    // who was down BEFORE reviving, so the revive restores their health but not the reward.
+    this._forfeitOffer = new Set();
     if (this.coop) {
-      for (const pl of this.players) if (!pl.alive) pl.revive(pl.x, pl.z);
+      for (const pl of this.players) {
+        if (!pl.alive) {
+          this._forfeitOffer.add(pl);
+          pl.revive(pl.x, pl.z);
+        }
+      }
       this.refreshHud();
     }
 
@@ -480,7 +488,14 @@ export class Game {
   /** open the offer queue: one pick-1-of-3 per living player (solo = [p1]; co-op = [p1, p2]). */
   _beginOffers() {
     this._offerActive = true;
-    this._offerQueue = this.players.filter((p) => p.alive);
+    // only players who were alive at room-clear get an offer (a downed co-op teammate is revived
+    // but forfeits this room's pick — see _onRoomClear).
+    this._offerQueue = this.players.filter((p) => p.alive && !this._forfeitOffer?.has(p));
+    if (this.coop && this._forfeitOffer?.size) {
+      for (const pl of this._forfeitOffer) {
+        hud.toast(`${pl === this.player ? 'P1' : 'P2'} was down — no upgrade this room`, false);
+      }
+    }
     this.state = State.OFFER;
     this.input.consumeRestart(); // drop any stray R (the offer reuses R for the ally reroll)
     this._presentNextOffer();
