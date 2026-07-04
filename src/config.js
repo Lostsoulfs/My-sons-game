@@ -607,7 +607,7 @@ export const CONTROLLER = {
 // and the pipeline auto-falls-back to raw render if post-FX can't initialize (never breaks).
 export const GRAPHICS = {
   enabled: true, // master switch — false = raw renderer.render()
-  pixelRatioCap: 2.0, // max devicePixelRatio. Restored to 2 now the discrete GPU is confirmed (the 1.5 was an iGPU red-herring dial-back). Only bites on hi-DPI panels; A/B live in the debug "Graphics" folder.
+  pixelRatioCap: 2, // max devicePixelRatio. Restored to 2 now the discrete GPU is confirmed (the 1.5 was an iGPU red-herring dial-back). Only bites on hi-DPI panels; A/B live in the debug "Graphics" folder.
   toneMapping: 'aces', // filmic curve: 'aces' | 'agx' | 'neutral' | 'none'
   aaSamples: 8, // WebGL2 MSAA samples for the post-FX path (0 = off). Raised 4→8 (discrete-GPU headroom).
   bloom: {

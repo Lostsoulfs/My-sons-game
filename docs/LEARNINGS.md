@@ -789,3 +789,27 @@ base*(1+growth)^i`. Removed the hand-set per-floor `diff` from `PROGRESSION.floo
 - **Lesson:** before treating a browser FPS number as a game/engine bottleneck, confirm **which GPU
   the browser is actually using**. Near-0 GPU% + high CPU = wrong adapter (or a software fallback),
   not a rendering-cost problem — chasing it in the game code would've been wasted work.
+
+## 2026-07-04 — PR-audit sweep (#75-#78): the Sonar gate's real tripwires
+
+- **This repo's SonarCloud quality gate fails a PR on ANY new MAJOR code smell (or vulnerability).**
+  The live tripwires this sweep: **S3358** nested ternaries (one each failed #75 and #77), **S3776**
+  cognitive complexity > 15 (`candidateEntries` at 22 failed #76), and **S2245 — Sonar now types
+  `Math.random()` as a VULNERABILITY** (3 uses failed #77, even for visual-only jitter). Write-time
+  rules: no nested ternaries, keep pure-engine loops flat, and use `core/rng.js` even for cosmetic
+  randomness.
+- **Sonar/Codacy PR findings are queryable without auth** — far more precise than the check-run
+  summary: `curl "https://sonarcloud.io/api/issues/search?componentKeys=Lost-secuirty_lostsouls-game&pullRequest=N&resolved=false"`.
+  Fix ALL findings in ONE push, not push-fail-push.
+- **New-pickup-type checklist:** grep `game.js _handlePickups` for per-type gates — a new type
+  silently bypasses them (exactly how HEART initially skipped the full-health leave-it-for-your-
+  teammate gate that HEAL had).
+- **ADR-0030 created a new bug class:** any pick that binds to the HELD gun is a dead pick on guns
+  that don't consume that stat (Orbital Blade ignores mods), and any state keyed by weapon TYPE
+  (`_weaponUpgrades`) must survive TWO slots holding the same gun (owned weapons are down-weighted
+  in offers, never excluded — duplicates are reachable by design).
+- **Game-lifetime FX objects (WeaponFX, particles) have no room-change clear hook** — `loadRoom`
+  clears bullets/hazards only. Any new deferred/queued FX needs its own `clear()` wired into
+  `loadRoom` or it leaks across rooms.
+- **The post-boss minion sweep bypasses `Enemy.die()`** (marks dead + removes mesh), so on-death
+  side effects (heart rolls, `onDeath` hooks) intentionally don't fire for swept minions.

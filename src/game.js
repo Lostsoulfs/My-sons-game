@@ -375,7 +375,7 @@ export class Game {
       for (const pl of this.players) {
         if (!pl.alive) continue;
         // a full-health player can't pick up a heart (leave it for a hurt teammate)
-        if (item.type === 'HEAL' && pl.hearts >= pl.maxHearts) continue;
+        if ((item.type === 'HEAL' || item.type === 'HEART') && pl.hearts >= pl.maxHearts) continue;
         if (circleVsCircle(pl.x, pl.z, pl.radius, item.x, item.z, item.radius)) {
           item.collect(this, pl);
           break;

@@ -137,14 +137,9 @@ export class Pickup {
       player.addWeapon(this.type.toLowerCase());
       audio.play('weapon');
     } else {
-      // only HEAL needs a magnitude now; the stat UPs add a stack (see player.js)
-      const mag =
-        this.type === 'HEAL'
-          ? PICKUPS.healAmount
-          : this.type === 'HEART'
-            ? PICKUPS.mobHeartAmount
-            : 0;
-      player.applyEffect(this.type, mag, game);
+      // the two heal types carry a magnitude; the stat UPs add a stack (see player.js)
+      const HEAL_MAG = { HEAL: PICKUPS.healAmount, HEART: PICKUPS.mobHeartAmount };
+      player.applyEffect(this.type, HEAL_MAG[this.type] ?? 0, game);
       audio.play('pickup');
     }
     hud.toast(look.label, true);
