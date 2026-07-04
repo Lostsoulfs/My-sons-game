@@ -192,6 +192,7 @@ export class Game {
     this.activeNpc = null;
     this.bullets.clearAll();
     this.hazards.clearAll();
+    this.weaponfx?.clear(); // drop queued secondary bursts — no FX leaking into the next room
     if (this.room) this.room.dispose();
 
     this.room = buildRoom(this.scene, this.rng);

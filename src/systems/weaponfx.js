@@ -15,6 +15,7 @@
 
 import * as THREE from 'three';
 import { GRAPHICS } from '../config.js';
+import { makeRng } from '../core/rng.js';
 import { settings } from './settings.js';
 
 const BALLISTIC_TRAIL = 0xffd27a; // warm lead tracer
@@ -43,6 +44,14 @@ export class WeaponFX {
     }
     this._next = 0;
     this._pending = []; // delayed secondary explosion bursts (visual only, one level deep)
+    // visual-only jitter rng — NOT the game's seeded run-rng (FX must never consume run
+    // randomness, ADR-0013); a local mulberry32 also keeps Sonar S2245 happy vs Math.random
+    this._rng = makeRng();
+  }
+
+  /** drop all queued secondary bursts (room change / restart — don't leak FX across rooms). */
+  clear() {
+    this._pending.length = 0;
   }
 
   _on() {
@@ -118,12 +127,12 @@ export class WeaponFX {
       const sec = vfx.impact?.secondaries;
       if (sec && this._on()) {
         for (let i = 0; i < (sec.count ?? 3); i++) {
-          const a = Math.random() * Math.PI * 2; // visual-layer randomness (like particles)
-          const r = (sec.radius ?? 2.2) * (0.4 + Math.random() * 0.6) * intensity;
+          const a = this._rng.next() * Math.PI * 2; // visual-layer randomness (local rng)
+          const r = (sec.radius ?? 2.2) * (0.4 + this._rng.next() * 0.6) * intensity;
           this._pending.push({
             t:
               (sec.delayMin ?? 0.05) +
-              Math.random() * ((sec.delayMax ?? 0.16) - (sec.delayMin ?? 0.05)),
+              this._rng.next() * ((sec.delayMax ?? 0.16) - (sec.delayMin ?? 0.05)),
             x: x + Math.sin(a) * r,
             z: z + Math.cos(a) * r,
             count: Math.max(4, Math.round(26 * (sec.scale ?? 0.45) * intensity)),

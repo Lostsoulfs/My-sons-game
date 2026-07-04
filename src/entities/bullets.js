@@ -137,9 +137,11 @@ export class Bullets {
     const st = GRAPHICS.vfx?.bulletStretch;
     b.stretched = !!(st && team === 'player' && o.fx);
     if (b.stretched) {
-      const kind = o.fx.trail === 'beam' ? 'beam' : o.fx.kind === 'energy' ? 'bolt' : 'tracer';
+      let stretch = st.tracer ?? 1; // ballistic default: a slight tracer stretch
+      if (o.fx.trail === 'beam') stretch = st.beam ?? 1;
+      else if (o.fx.kind === 'energy') stretch = st.bolt ?? 1;
       const w = s * (st.squish ?? 0.8);
-      b.mesh.scale.set(w, w, s * (st[kind] ?? 1));
+      b.mesh.scale.set(w, w, s * stretch);
       b.mesh.rotation.y = Math.atan2(b.vx, b.vz); // local +Z = travel (streak convention)
     } else {
       b.mesh.scale.setScalar(s);
