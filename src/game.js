@@ -10,17 +10,7 @@
 // revives when the room is cleared; Game Over only on a full wipe.
 // =====================================================================
 
-import {
-  CAMERA,
-  JUICE,
-  FEEL,
-  ARENA,
-  CAPS,
-  PALETTE,
-  PICKUPS,
-  MENU_CURSOR,
-  SAVES,
-} from './config.js';
+import { CAMERA, JUICE, FEEL, ARENA, CAPS, PALETTE, MENU_CURSOR, SAVES } from './config.js';
 import { State } from './states.js';
 import { makeRng } from './core/rng.js';
 import { floorInfo, nextIsBoss, resolveDeath, weaponSlotsForBosses } from './core/progression.js';
@@ -31,7 +21,6 @@ import { Bullets } from './entities/bullets.js';
 import { Hazards } from './systems/hazards.js';
 import { Overlays } from './systems/overlays.js';
 import { Pickup } from './entities/pickups.js';
-import { rollDrop } from './core/drops.js';
 import { generateOffer } from './core/offers.js';
 import { Particles } from './systems/particles.js';
 import { WeaponFX } from './systems/weaponfx.js';
@@ -448,10 +437,6 @@ export class Game {
     const info = floorInfo(this.roomIndex);
 
     if (info.isBossRoom) {
-      // boss room: open the door now + drop the ground reward (HEAL + weapon chest) — unchanged (B8)
-      this.room.openDoor();
-      audio.play('doorOpen');
-      this.state = State.ROOM_CLEAR;
       hud.hideBossBars();
       audio.play('bossDie');
       this.input.rumble(0.8, 0.6, 300); // boss-down rumble
@@ -459,27 +444,31 @@ export class Game {
       // checkpoint: respawn at the next floor if you die from here on
       if (!info.isLastRoom) this.checkpointRoom = this.roomIndex + 1;
       hud.banner(info.isLastRoom ? 'BOSS DOWN — FINAL EXIT!' : 'BOSS DOWN — CHECKPOINT SAVED!');
-      this._dropBossReward();
+      this.spawnPickup('HEAL', -2, 0); // a boss always heals you — NO more ground weapon chest (ADR-0030)
+      if (info.isLastRoom) {
+        // final boss: open the exit straight away, no offer (the run is ending)
+        this.room.openDoor();
+        audio.play('doorOpen');
+        this.state = State.ROOM_CLEAR;
+      } else {
+        // boss reward is now a GUARANTEED boss-tier OFFER — weapons come only from the tree (ADR-0030)
+        audio.play('roomClear');
+        this._beginOffers({ boss: true });
+      }
     } else {
-      // normal room: open the pick-1-of-3 OFFER screen (B9b) INSTEAD of a ground stat-drop. The door
-      // stays CLOSED + the room stays paused until every living player has picked (_finishRoomClear).
+      // normal room: open the pick-1-of-3 OFFER screen INSTEAD of a ground stat-drop. The door stays
+      // CLOSED + the room stays paused until every living player has picked (_finishRoomClear).
       audio.play('roomClear');
       this._beginOffers();
     }
   }
 
-  /** boss reward: a heal + a weapon chest (rare+, no commons — B8). */
-  _dropBossReward() {
-    this.spawnPickup('HEAL', -2, 0);
-    const drop = rollDrop(this.rng, PICKUPS.rarity.bossChestWeights);
-    this.spawnPickup(drop.type, 2, 0);
-  }
-
   // ---- B9b: room-clear OFFER flow (replaces the old ground stat-drop) ----
 
   /** open the offer queue: one pick-1-of-3 per living player (solo = [p1]; co-op = [p1, p2]). */
-  _beginOffers() {
+  _beginOffers({ boss = false } = {}) {
     this._offerActive = true;
+    this._offerBoss = boss; // boss clears guarantee a rare+ card (ADR-0030)
     this._offerQueue = this.players.filter((p) => p.alive);
     this.state = State.OFFER;
     this.input.consumeRestart(); // drop any stray R (the offer reuses R for the ally reroll)
@@ -494,7 +483,8 @@ export class Game {
       return;
     }
     this._offerPlayer = pl;
-    const cards = generateOffer(this.rng, pl.offerContext()); // seeded (ADR-0013) → reproducible
+    // seeded (ADR-0013) → reproducible; bossTier guarantees a rare+ card on boss clears (ADR-0030)
+    const cards = generateOffer(this.rng, { ...pl.offerContext(), bossTier: this._offerBoss });
     pl.noteOffered(cards.map((c) => c.id));
     let playerTag = null;
     if (this.coop) playerTag = pl === this.player ? 'P1' : 'P2';

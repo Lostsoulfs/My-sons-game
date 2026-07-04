@@ -51,14 +51,26 @@ function itemWeight(it, baseWeight, recent, owned) {
 }
 
 /** build [{value, weight}] candidates across the given tier pools, optionally excluding a category. */
-function candidateEntries({ pools, spanning, chosen, recent, owned, avoidCat }) {
+function candidateEntries({
+  pools,
+  spanning,
+  chosen,
+  recent,
+  owned,
+  avoidCat,
+  blocked,
+  weaponDecay = 1,
+}) {
   const entries = [];
   for (const t of pools) {
     const tierW = spanning ? Math.max(OFFERS.tierWeights[t] ?? 0, 0.0001) : 1; // span → weight by rarity
     for (const it of itemsByTier[t] ?? []) {
       if (chosen.has(it.id)) continue;
+      if (blocked?.has(it.id)) continue; // ADR-0030: maxed stats + gated mods are out of the pool
       if (avoidCat && it.category === avoidCat) continue;
-      entries.push({ value: it, weight: itemWeight(it, tierW, recent, owned) });
+      let w = itemWeight(it, tierW, recent, owned);
+      if (it.category === 'weapon') w *= weaponDecay; // extra down-weight for a 2nd+ weapon (ADR-0030)
+      entries.push({ value: it, weight: w });
     }
   }
   return entries;
@@ -69,9 +81,12 @@ function candidateEntries({ pools, spanning, chosen, recent, owned, avoidCat }) 
  * tiers (the variety card, so it can always reach another category). `avoidCat` is relaxed only if it
  * would otherwise empty the pool.
  */
-function pickItem(rng, { tier = null, chosen, recent, owned, avoidCat = null }) {
+function pickItem(
+  rng,
+  { tier = null, chosen, recent, owned, avoidCat = null, blocked, weaponDecay },
+) {
   const pools = tier ? [tier] : TIERS;
-  const opts = { pools, spanning: !tier, chosen, recent, owned };
+  const opts = { pools, spanning: !tier, chosen, recent, owned, blocked, weaponDecay };
   let entries = candidateEntries({ ...opts, avoidCat });
   if (!entries.length) entries = candidateEntries({ ...opts, avoidCat: null });
   return weightedChoice(rng, entries);
@@ -84,16 +99,17 @@ function overflowCategory(catCount) {
 }
 
 /** draw one card's item: variety-aware, with the pity floor applied to the first card. */
-function drawCard(rng, { index, floor, chosen, catCount, recent, owned }) {
+function drawCard(rng, { index, floor, chosen, catCount, recent, owned, blocked, weaponDecay }) {
   const avoidCat = overflowCategory(catCount);
+  const gate = { blocked, weaponDecay };
   let item;
   if (avoidCat) {
-    item = pickItem(rng, { chosen, recent, owned, avoidCat }); // span tiers to reach another category
+    item = pickItem(rng, { chosen, recent, owned, avoidCat, ...gate }); // span tiers to reach another category
   } else {
     const tier = rollTier(rng, index === 0 ? floor : null) ?? rollTier(rng, null);
-    item = tier ? pickItem(rng, { tier, chosen, recent, owned }) : null;
+    item = tier ? pickItem(rng, { tier, chosen, recent, owned, ...gate }) : null;
   }
-  return item ?? pickItem(rng, { chosen, recent, owned }); // last-ditch: any not-chosen item
+  return item ?? pickItem(rng, { chosen, recent, owned, ...gate }); // last-ditch: any not-chosen item
 }
 
 /**
@@ -109,13 +125,36 @@ export function generateOffer(rng, ctx = {}) {
   const owned = ctx.owned instanceof Set ? ctx.owned : new Set(ctx.owned ?? []);
   const recent = ctx.recent instanceof Set ? ctx.recent : new Set(ctx.recent ?? []);
   const stacksOf = ctx.stacks ?? {};
-  const floor = pityFloorTier(ctx.commonStreak ?? 0);
+  let floor = pityFloorTier(ctx.commonStreak ?? 0);
+  // boss clears guarantee at least a 'rare' floor card (ADR-0030 boss-tier reward)
+  if (ctx.bossTier && (!floor || tierIndex(floor) < tierIndex('rare'))) floor = 'rare';
+
+  // ADR-0030 weapon-aware gating — all opt-in via ctx; absent fields ⇒ no gating (back-compat):
+  //   • drop a stat card once the HELD gun has maxed it (statCap),
+  //   • withhold explosive tips on already-explosive or fast-firing guns,
+  //   • down-weight weapon offers once you already carry more than one gun.
+  const blocked = new Set();
+  const cap = ctx.statCap ?? Infinity;
+  const ws = ctx.weaponStat ?? {};
+  if ((ws.DAMAGE_UP ?? 0) >= cap) blocked.add('DAMAGE_UP');
+  if ((ws.FIRE_RATE_UP ?? 0) >= cap) blocked.add('FIRE_RATE_UP');
+  if (ctx.weaponExplosive || ctx.weaponFast) blocked.add('MOD_BLAST');
+  const weaponDecay = (ctx.ownedCount ?? 0) > 1 ? (OFFERS.extraWeaponDecay ?? 1) : 1;
 
   const chosen = new Set();
   const catCount = {};
   const cards = [];
   for (let i = 0; i < OFFERS.cardCount; i++) {
-    const item = drawCard(rng, { index: i, floor, chosen, catCount, recent, owned });
+    const item = drawCard(rng, {
+      index: i,
+      floor,
+      chosen,
+      catCount,
+      recent,
+      owned,
+      blocked,
+      weaponDecay,
+    });
     if (!item) break; // registry exhausted (won't happen at the current size)
     chosen.add(item.id);
     catCount[item.category] = (catCount[item.category] ?? 0) + 1;

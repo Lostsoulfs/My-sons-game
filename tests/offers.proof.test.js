@@ -101,3 +101,46 @@ describe('anti-repeat down-weights recent items and owned weapons', () => {
     expect(owned).toBeLessThan(fresh);
   });
 });
+
+// ADR-0030 — the offer generator is weapon-aware (all opt-in via ctx). These lock the gating.
+describe('ADR-0030 weapon-aware gating', () => {
+  const has = (id, ctx, seed, N = 4000) => {
+    const rng = makeRng(seed);
+    let n = 0;
+    for (let i = 0; i < N; i++) if (generateOffer(rng, ctx).some((c) => c.id === id)) n++;
+    return n;
+  };
+
+  it('never offers a stat the HELD weapon has already maxed', () => {
+    const rng = makeRng(5);
+    for (let i = 0; i < 2000; i++) {
+      const cards = generateOffer(rng, { statCap: 9, weaponStat: { DAMAGE_UP: 9 } });
+      expect(cards.some((c) => c.id === 'DAMAGE_UP')).toBe(false);
+    }
+  });
+
+  it('withholds explosive tips on an already-explosive OR fast-firing gun', () => {
+    const rng = makeRng(6);
+    for (let i = 0; i < 1500; i++) {
+      expect(generateOffer(rng, { weaponExplosive: true }).some((c) => c.id === 'MOD_BLAST')).toBe(
+        false,
+      );
+      expect(generateOffer(rng, { weaponFast: true }).some((c) => c.id === 'MOD_BLAST')).toBe(
+        false,
+      );
+    }
+  });
+
+  it('a boss-tier offer guarantees the first card is rare or better', () => {
+    for (let seed = 0; seed < 60; seed++) {
+      const cards = generateOffer(makeRng(seed), { bossTier: true });
+      expect(tierIdx(cards[0].tier)).toBeGreaterThanOrEqual(tierIdx('rare'));
+    }
+  });
+
+  it('down-weights NEW weapon offers once you already hold more than one gun', () => {
+    const one = has('SHOTGUN', { ownedCount: 1 }, 300);
+    const many = has('SHOTGUN', { ownedCount: 2 }, 300);
+    expect(many).toBeLessThan(one);
+  });
+});
