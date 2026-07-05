@@ -23,6 +23,10 @@ function tierIndex(t) {
  */
 export function pityFloorTier(commonStreak) {
   const { softPity, hardPity } = OFFERS;
+  // CP3 (ADR-0036): dry-streak pity is disabled by default (`OFFERS.pityEnabled === false`) — the
+  // offer economy is deliberately HARSH with no soft/hard safety net. The boss-clear rare+ floor
+  // (generateOffer) is SEPARATE and stays. Helper kept behind the flag for future re-enable.
+  if (!OFFERS.pityEnabled) return null;
   let floor = null;
   const raise = (t) => {
     if (!floor || tierIndex(t) > tierIndex(floor)) floor = t;

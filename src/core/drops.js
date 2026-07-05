@@ -43,8 +43,12 @@ export function rarityBand(floorIndex) {
 /**
  * Hard pity: once `commonStreak` consecutive common drops have been drawn, return the forced floor
  * tier (`minTier`); otherwise null (no floor). PURE — the streak itself is tracked by the caller.
+ * CP3 (ADR-0036): disabled by default (`RARITY.pityEnabled === false`) — the rarity pyramid is
+ * deliberately HARSH with no dry-streak safety net; the helper stays behind the flag for future use.
+ * (Boss chests still always pay rare+ via `bossChestWeights` — that floor is separate from pity.)
  */
 export function pityMinTier(commonStreak) {
+  if (!RARITY.pityEnabled) return null;
   return commonStreak >= RARITY.hardPity.commonStreakMax ? RARITY.hardPity.minTier : null;
 }
 

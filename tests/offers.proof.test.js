@@ -56,26 +56,24 @@ describe('tier roll matches the configured weights (chi-square, seeded)', () => 
   });
 });
 
-describe('pity floors the offer as a dry streak grows', () => {
-  it('pityFloorTier ramps null → rare → epic', () => {
-    expect(pityFloorTier(0)).toBeNull();
-    expect(pityFloorTier(OFFERS.softPity.rareAfter)).toBe('rare');
-    expect(pityFloorTier(OFFERS.hardPity.commonStreakMax)).toBe('rare'); // hard pity guarantees rare+
-    expect(pityFloorTier(OFFERS.softPity.epicAfter)).toBe('epic');
-  });
-
-  it('a long dry streak guarantees the first card clears the floor (never common)', () => {
-    for (let seed = 0; seed < 60; seed++) {
-      const cards = generateOffer(makeRng(seed), { commonStreak: OFFERS.hardPity.commonStreakMax });
-      expect(tierIdx(cards[0].tier)).toBeGreaterThanOrEqual(tierIdx(OFFERS.hardPity.minTier));
+// CP3 (ADR-0036): dry-streak pity is DISABLED — the offer economy is deliberately harsh. The
+// boss-clear rare+ floor is a SEPARATE mechanism that stays (covered below under weapon-aware gating).
+describe('dry-streak pity is disabled (harsh economy, ADR-0036)', () => {
+  it('pityFloorTier returns null at every streak length', () => {
+    for (const s of [0, OFFERS.softPity.rareAfter, OFFERS.hardPity.commonStreakMax, 99]) {
+      expect(pityFloorTier(s)).toBeNull();
     }
   });
 
-  it('past the epic-pity streak the first card is epic or better', () => {
-    for (let seed = 0; seed < 60; seed++) {
-      const cards = generateOffer(makeRng(seed), { commonStreak: OFFERS.softPity.epicAfter });
-      expect(tierIdx(cards[0].tier)).toBeGreaterThanOrEqual(tierIdx('epic'));
+  it('a long dry streak does NOT floor the first card — it can still be common', () => {
+    let sawCommonFirst = false;
+    for (let seed = 0; seed < 60 && !sawCommonFirst; seed++) {
+      const cards = generateOffer(makeRng(seed), {
+        commonStreak: OFFERS.hardPity.commonStreakMax + 5,
+      });
+      if (cards[0].tier === 'common') sawCommonFirst = true;
     }
+    expect(sawCommonFirst).toBe(true); // no safety net — a run can stay mean
   });
 });
 

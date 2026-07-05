@@ -147,14 +147,17 @@ export const ITEMS = [
   // --- weapons — generated from a compact [id, name, tier, tags] table (tiers mirror B8
   //     PICKUPS.rarity.itemRarity); the weapon key is the lower-cased id, matching config.WEAPONS ---
   ...[
+    // Tiers are the CP3 power-budget bands (core/powerScore.js, ADR-0036) — a strict 8/7/5/2
+    // pyramid where rarity ≈ sustained (duty-corrected) power. Kept in lockstep with
+    // config.PICKUPS.rarity.itemRarity by tests/items.test.js.
     ['SHOTGUN', 'Shotgun', 'rare', ['burst', 'close']],
     ['MACHINEGUN', 'Machine Gun', 'rare', ['rapid']],
-    ['BOUNCER', 'Bouncer', 'rare', ['bounce', 'crowd']],
-    ['ROCKET', 'Rocket Launcher', 'epic', ['aoe', 'burst']],
-    ['HOMING', 'Homing Missiles', 'epic', ['homing', 'aoe']],
-    ['RAILGUN', 'Railgun', 'epic', ['pierce', 'precise']],
+    ['BOUNCER', 'Bouncer', 'common', ['bounce', 'crowd']],
+    ['ROCKET', 'Rocket Launcher', 'rare', ['aoe', 'burst']],
+    ['HOMING', 'Homing Missiles', 'common', ['homing', 'aoe']],
+    ['RAILGUN', 'Railgun', 'common', ['pierce', 'precise']],
     ['CHARGE', 'Charge Cannon', 'epic', ['burst', 'precise']],
-    ['ORBITAL', 'Orbital Blade', 'epic', ['crowd', 'defensive']],
+    ['ORBITAL', 'Orbital Blade', 'rare', ['crowd', 'defensive']],
     // --- 1950s matrix (rarity ⟂ flavor). `real`/`energy` tags carry flavor for future scoring. ---
     // ULTRA weapons (minigun, davycrockett) are OFFER-ONLY: here with tier:'ultra', but deliberately
     // absent from PICKUPS.rarity.itemRarity + entities/pickups.js WEAPON_TYPES (the B8 drop engine).
@@ -162,7 +165,7 @@ export const ITEMS = [
     ['CARBINE', 'M1 Carbine', 'common', ['precise', 'real']],
     ['LASERPISTOL', 'Laser Pistol', 'common', ['energy']],
     ['GARAND', 'M1 Garand', 'rare', ['precise', 'pierce', 'real']],
-    ['THOMPSON', 'Thompson', 'rare', ['rapid', 'real']],
+    ['THOMPSON', 'Thompson', 'common', ['rapid', 'real']],
     ['PPSH', 'PPSh-41', 'rare', ['rapid', 'spray', 'real']],
     ['BAR', 'BAR', 'rare', ['rapid', 'real']],
     ['BROWNING', 'Browning M1919', 'epic', ['rapid', 'real']],

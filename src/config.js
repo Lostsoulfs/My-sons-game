@@ -1103,7 +1103,7 @@ export const WEAPONS = {
   raygun: {
     name: 'Atomic Ray Gun',
     cooldown: 0.26,
-    damage: 4,
+    damage: 3, // CP3: 4→3 — a 3-pierce fast bolt was scoring above the ultras; keeps it top-epic
     pellets: 1,
     spreadDeg: 0,
     bulletSpeed: 40,
@@ -1114,7 +1114,7 @@ export const WEAPONS = {
   plasma: {
     name: 'Plasma Launcher',
     cooldown: 0.9,
-    damage: 4,
+    damage: 6, // CP3: 4→6 — the slow cadence buried its DPS; +2 + AoE alpha credit lands it in epic
     pellets: 1,
     spreadDeg: 0,
     bulletSpeed: 20,
@@ -1135,7 +1135,7 @@ export const WEAPONS = {
   davycrockett: {
     name: 'Davy Crockett',
     cooldown: 1.6,
-    damage: 8,
+    damage: 11, // CP3: 8→11 — with the AoE alpha-strike credit this room-nuke scores as a true ultra
     pellets: 1,
     spreadDeg: 0,
     bulletSpeed: 16,
@@ -1159,9 +1159,9 @@ export const WEAPON_LIMITS = {
   pistol: { reload: { clipSize: 8, reloadTime: 1.0 } },
   shotgun: { reload: { clipSize: 6, reloadTime: 1.3 } },
   machinegun: { reload: { clipSize: 40, reloadTime: 1.7 } },
-  rocket: { reload: { clipSize: 4, reloadTime: 1.6 } },
+  rocket: { reload: { clipSize: 5, reloadTime: 1.6 } }, // CP3: +1 clip lifts sustained into rare band
   homing: { reload: { clipSize: 6, reloadTime: 1.6 } },
-  charge: { reload: { clipSize: 4, reloadTime: 1.5 } },
+  charge: { reload: { clipSize: 5, reloadTime: 1.5 } }, // CP3: +1 clip lifts sustained into epic band
   uzi: { reload: { clipSize: 28, reloadTime: 1.6 } },
   carbine: { reload: { clipSize: 15, reloadTime: 1.2 } },
   garand: { reload: { clipSize: 8, reloadTime: 1.4 } }, // M1 Garand en-bloc clip = 8 (thematic)
@@ -1170,14 +1170,48 @@ export const WEAPON_LIMITS = {
   bar: { reload: { clipSize: 20, reloadTime: 1.5 } },
   browning: { reload: { clipSize: 48, reloadTime: 3.4 } }, // belt-fed → the long reload IS its downside
   davycrockett: { reload: { clipSize: 2, reloadTime: 2.4 } }, // 2 nukes, then a long reload
-  // energy → overheat gauge
-  laserpistol: { heat: { heatPerShot: 0.08, coolRatePerSec: 0.5, resetHeat: 0.25 } },
-  railgun: { heat: { heatPerShot: 0.14, coolRatePerSec: 0.35, resetHeat: 0.3 } },
-  bouncer: { heat: { heatPerShot: 0.07, coolRatePerSec: 0.5, resetHeat: 0.25 } },
-  maser: { heat: { heatPerShot: 0.12, coolRatePerSec: 0.4, resetHeat: 0.3 } },
-  raygun: { heat: { heatPerShot: 0.16, coolRatePerSec: 0.35, resetHeat: 0.35 } }, // overheats fast
-  plasma: { heat: { heatPerShot: 0.2, coolRatePerSec: 0.3, resetHeat: 0.3 } },
-  minigun: { heat: { heatPerShot: 0.02, coolRatePerSec: 0.25, resetHeat: 0.3 } }, // spin-up + overheat
+  // energy → overheat gauge. CP3 tuned each `heatPerShot` so the gun actually OVERHEATS under
+  // sustained hosing (net heat/shot = heatPerShot − coolRate·cooldown > 0) → a real duty-cycle
+  // downside; before this most energy guns cooled faster than they heated (duty 1, no downside).
+  laserpistol: { heat: { heatPerShot: 0.182, coolRatePerSec: 0.5, resetHeat: 0.25 } },
+  railgun: { heat: { heatPerShot: 0.273, coolRatePerSec: 0.35, resetHeat: 0.3 } },
+  bouncer: { heat: { heatPerShot: 0.223, coolRatePerSec: 0.5, resetHeat: 0.25 } },
+  maser: { heat: { heatPerShot: 0.234, coolRatePerSec: 0.4, resetHeat: 0.3 } },
+  raygun: { heat: { heatPerShot: 0.184, coolRatePerSec: 0.35, resetHeat: 0.35 } },
+  plasma: { heat: { heatPerShot: 0.435, coolRatePerSec: 0.3, resetHeat: 0.3 } },
+  minigun: { heat: { heatPerShot: 0.014, coolRatePerSec: 0.25, resetHeat: 0.3 } }, // spin-up + a lenient overheat (~13s of sustained wound-up fire, then cool)
+};
+
+// ---- CP3: weapon POWER-BUDGET model (core/powerScore.js) — makes rarity ≈ power ----
+// One scalar scores a weapon's true combat value: sustained (duty-corrected) DPS, weighted by
+// accuracy + range, blended across single-target and a small crowd (so pierce/AoE archetypes score
+// on the targets they hit). Rarity TIER = a score BAND (TIER_BANDS). Every weapon pays a downside via
+// its reload/overheat DUTY cycle. tests/weaponEconomy.test.js asserts power↔tier is a strict pyramid.
+export const POWER_SCORE = {
+  ACC_FLOOR: 0.55, // a max-spread single-pellet gun keeps at least this accuracy factor
+  ACC_HALF: 22, // spread° at which half the accuracy penalty is reached
+  REF_SPEED: 30, // bullet-speed reference for the range factor
+  RANGE_BASE: 0.8, // range factor floor (a slow lob)
+  RANGE_GAIN: 0.45, // ...asymptotes to BASE+GAIN for a fast bolt
+  CROWD_N: 3, // crowd-scenario size = the target-count cap for pierce/AoE credit
+  PIERCE_HIT: 0.7, // extra-target credit per pierce (× min(pierce, 8))
+  AOE_AREA_DIV: 22, // explosive area (π r²) ÷ this = extra targets
+  ORBITAL_TARGETS: 2.0, // effective targets for the orbital (zero-aim contact)
+  HOMING_TARGETS: 1.2, // homing auto-connects → a little crowd credit
+  // Alpha-strike credit: burst room-clear the sustained-DPS model can't see (Davy Crockett nuke).
+  ALPHA_REF: 8, // per-shot damage × targets below which a weapon gets NO alpha credit (normal guns)
+  ALPHA_GAIN: 0.5, // credit slope above the reference
+  ALPHA_CAP: 2.5, // max (punch − 1) that counts → alpha factor tops out at 1 + GAIN·CAP
+};
+
+// Score BANDS per rarity tier (on the SUSTAINED power score). Non-overlapping + ascending; the
+// weaponEconomy test asserts every weapon's score sits in its assigned tier's band and that the
+// per-tier medians strictly increase. Tuned to the actual roster spread (see the test's golden table).
+export const TIER_BANDS = {
+  common: [0, 6.7],
+  rare: [6.7, 9.7],
+  epic: [9.7, 16.5],
+  ultra: [16.5, Infinity],
 };
 
 // ---- pickups you walk over to grab ----
@@ -1195,20 +1229,21 @@ export const PICKUPS = {
       DAMAGE_UP: 'common',
       FIRE_RATE_UP: 'common',
       SPEED_UP: 'common',
+      // weapon tiers = CP3 power-budget bands (lockstep with core/items.js via tests/items.test.js)
       SHOTGUN: 'rare',
       MACHINEGUN: 'rare',
-      BOUNCER: 'rare',
-      ROCKET: 'epic',
-      HOMING: 'epic',
-      RAILGUN: 'epic',
+      BOUNCER: 'common',
+      ROCKET: 'rare',
+      HOMING: 'common',
+      RAILGUN: 'common',
       CHARGE: 'epic',
-      ORBITAL: 'epic',
+      ORBITAL: 'rare',
       // 1950s matrix (ground-droppable tiers only — ULTRA minigun/davycrockett are offer-only)
       UZI: 'common',
       CARBINE: 'common',
       LASERPISTOL: 'common',
       GARAND: 'rare',
-      THOMPSON: 'rare',
+      THOMPSON: 'common',
       PPSH: 'rare',
       BAR: 'rare',
       BROWNING: 'epic',
@@ -1219,15 +1254,19 @@ export const PICKUPS = {
     // floors at/after each edge bump up a band → rarer drops deeper in the run.
     // bandEdges [2,4] ⇒ floors 0–1 = band 0, 2–3 = band 1, 4 = band 2.
     bandEdges: [2, 4],
-    // tier weights for a NORMAL room clear, one row per band (descending falloff deeper in)
+    // CP3 (ADR-0036): strict descending pyramid, tightened HARSHER on epic (Scott: "too many
+    // epic/ultra"). One row per band; deeper floors lean rarer. common > rare > epic in every row.
     regularChestWeights: [
-      { common: 70, rare: 25, epic: 5 }, // band 0 — early floors
-      { common: 55, rare: 33, epic: 12 }, // band 1 — mid
-      { common: 45, rare: 37, epic: 18 }, // band 2 — the finale stretch
+      { common: 75, rare: 21, epic: 4 }, // band 0 — early floors
+      { common: 62, rare: 30, epic: 8 }, // band 1 — mid
+      { common: 50, rare: 36, epic: 14 }, // band 2 — the finale stretch
     ],
-    // boss chest: a hard fight always pays a weapon (no commons), leaning epic
-    bossChestWeights: { common: 0, rare: 55, epic: 45 },
-    // hard pity: after this many consecutive COMMON normal-room drops, force the next to rare+
+    // boss chest: a hard fight always pays a weapon (no commons), leaning epic — this rare+ floor
+    // is SEPARATE from the (now-disabled) dry-streak pity and stays.
+    bossChestWeights: { common: 0, rare: 58, epic: 42 },
+    // CP3: dry-streak pity DISABLED (harsh, no safety net). Helper (core/drops.js pityMinTier) stays
+    // behind this flag; params kept for a future re-enable.
+    pityEnabled: false,
     hardPity: { commonStreakMax: 4, minTier: 'rare' },
   },
   // DAMAGE_UP / FIRE_RATE_UP / SPEED_UP each add ONE stack; the stat is recomputed from the
@@ -1273,14 +1312,17 @@ export const MINIMAP = {
 export const OFFERS = {
   cardCount: 3, // cards shown per offer
   tiers: ['common', 'rare', 'epic', 'ultra'], // low → high (offer-only; adds `ultra` for the guard)
-  tierWeights: { common: 58, rare: 28, epic: 12, ultra: 2 }, // base draw weights per card
+  // CP3 (ADR-0036): strict descending pyramid, epic tightened (Scott: "too many epic/ultra").
+  tierWeights: { common: 60, rare: 28, epic: 10, ultra: 2 }, // base draw weights per card
   // anti-repeat: scale an item's pick weight when it was offered recently or is an owned weapon
   recentDecay: 0.35, // pick weight × this if the item was in the last few offers
   ownedWeaponDecay: 0.15, // pick weight × this for a weapon you already carry (low re-value)
   recentMemory: 6, // how many recently-offered item ids stay down-weighted (player.js ring buffer)
   categoryVariety: true, // avoid showing 3 cards of the same category when a 3rd category is available
-  // soft pity ramps the guaranteed floor tier of the BEST card as rooms pass without taking a rare+;
-  // hard pity forces a rare+ at the cap (mirrors B8's drop pity, applied to the offer).
+  // CP3 (ADR-0036): dry-streak pity DISABLED (harsh, no safety net) — core/offers.js pityFloorTier
+  // early-returns null. The boss-clear rare+ floor is separate (generateOffer) and stays. Soft/hard
+  // params kept behind the flag for a future re-enable.
+  pityEnabled: false,
   softPity: { rareAfter: 2, epicAfter: 5 }, // common-streak rooms → forced floor tier for one card
   hardPity: { commonStreakMax: 4, minTier: 'rare' },
   // ADR-0030 weapon-aware gating: guns at/under this cooldown are "fast" → the explosive-tips mod is
