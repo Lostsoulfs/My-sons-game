@@ -9,6 +9,7 @@ import { Input, isEditable } from './systems/input.js';
 import { Game } from './game.js';
 import { startLoop } from './core/loop.js';
 import { MODELS, GRAPHICS } from './config.js';
+import { resolveGraphicsTier, applyGraphicsPreset } from './core/graphics.js';
 import * as audio from './systems/audio.js';
 import { showStartMenu } from './ui/startmenu.js';
 import { settings } from './systems/settings.js';
@@ -17,7 +18,34 @@ import { initCredits } from './ui/credits.js';
 import { initMetaPanel } from './ui/metaProgress.js';
 import { saves } from './core/saves.js';
 
+// Read the UNMASKED GL renderer string from a THROWAWAY context (never throws; '' if unavailable).
+// Only used to auto-downgrade unambiguous software renderers — see core/graphics.js resolveGraphicsTier.
+function probeRendererString() {
+  try {
+    const c = document.createElement('canvas');
+    const gl = c.getContext('webgl2') || c.getContext('webgl');
+    if (!gl) return '';
+    const ext = gl.getExtension('WEBGL_debug_renderer_info');
+    const s = ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) || '') : '';
+    gl.getExtension('WEBGL_lose_context')?.loseContext(); // free the probe context immediately
+    return s;
+  } catch {
+    return '';
+  }
+}
+
 (async () => {
+  // FPS-2: resolve the graphics tier BEFORE anything reads GRAPHICS (textures + scene below). A
+  // software/headless GL renderer — or an explicit `?gfx=low` — deep-merges the low preset onto
+  // GRAPHICS; a real GPU (incl. an Intel iGPU via ANGLE) stays full. Force either way with ?gfx=.
+  const gfxTier = resolveGraphicsTier({
+    param: new URLSearchParams(location.search).get('gfx'),
+    renderer: probeRendererString(),
+    webdriver: typeof navigator !== 'undefined' && navigator.webdriver === true,
+  });
+  if (gfxTier === 'low') applyGraphicsPreset(GRAPHICS, GRAPHICS.lowPreset);
+  window.__gfxTier = gfxTier; // observability (verification drive + debug menu)
+
   // preload the floor PBR maps BEFORE the scene (the ground is built in createScene);
   // never-throws, so a missing file just leaves the floor on its flat fallback color.
   if (GRAPHICS.floor.enabled) {
