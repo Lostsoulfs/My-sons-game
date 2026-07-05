@@ -1169,3 +1169,49 @@ heatPerShot − coolRate·cooldown ≤ 0`, `dutyEnergy` returns 1 — i.e. no do
   instead of quietly repainted.
 - 484 tests (4 new); gate green; live-verified via `window.__game` (distinct capsule radii, distinct
   prop geometry/color, identical collision radius, `hasAnim:false` fallback) across solo + 2P.
+
+## 2026-07-05 — CP-C demon companion (ADR-0042)
+
+- **Ride an existing pipe instead of adding a parallel one.** The demon unlock could have been a new
+  save field + its own gate checks. Instead it's a META_UPGRADES node whose `effect.stat: 'demon'`
+  flows through `baselineStacks` — so the first-win all-zero gate, save normalization (clamp 0..1),
+  and the meta-shop UI all cover it with ZERO new code. The catch: `baselineStacks`' zero-object must
+  gain a key for every new `effect.stat`, or `result[stat] +=` silently produces **NaN** (a test now
+  locks Number.isFinite on every key).
+- **"Not in the players array" is a design decision, not an omission.** A scout suggested appending
+  the companion to `game.players` for convenience — but that array drives offers (it would queue
+  picks), wipe detection, co-op revives, and `nearestPlayer` targeting. Keeping `game.demon` separate
+  makes it offer-less/untargetable/unkillable BY CONSTRUCTION, with zero "but not the demon"
+  carve-outs downstream.
+- **Feed companions the RAW baseline, not the player's copy.** `game._makePlayer` merges the Dad/Son
+  ±trait into the baseline it hands the Player; a companion inheriting "permanent meta buffs" must
+  take `baselineStacks(saves.get())` directly or it silently inherits a slice of a character trait.
+- **A bespoke bolt beats a WEAPONS entry for a companion.** Giving the demon a real gun (old-Ally
+  style) couples it to the power-budget/rarity model, the reroll question, and weapon-econ tests.
+  A config-only `DEMON.bolt` + `bullets.spawnPlayer` keeps the entire economy surface closed —
+  `deriveWeaponFx({color})` alone classifies it as an energy bolt (bright+cool color).
+- **Live-verify inheritance to the decimal.** hp 3.991 → 1.982 after two bolts = exactly
+  2 × (1 × 1.0045 inherited) — the multiplier is visibly in the damage path, not just in a snapshot.
+  Also: a "demon fired 0 bullets" false alarm was just RANGE (enemies spawn 22+ u away; DEMON.range 22) — drag an enemy close in the probe before concluding the gun is broken.
+- 496 tests (2 new files); gate green.
+
+## 2026-07-05 — CP-C adversarial review (balance invariant): HUMAN_APPROACH is NOT enemy-free
+
+- **The `game.enemies`-is-empty assumption in HUMAN_APPROACH is false.** `loadRoom` runs
+  `populateRoom` → `game.addEnemy(boss)` and then derives `this.bosses = this.enemies.filter(isBoss)`
+  — bosses live in BOTH arrays (a 2026-06-21 learning), including the inert human. Any
+  auto-targeting entity ticked during the walk-up (the demon) will acquire and fire on the
+  invulnerable survivor mid-cinematic. Filter `e.invuln` (and/or gate auto-fire to combat states)
+  in every companion/turret target scan; don't trust a state name to mean "no enemies".
+- **Invariant sweep result (all clean):** demon can't take in-run power — offers
+  (`_offerPlayer`/`applyOfferCard` are player-targeted), pickups (`_handlePickups` iterates
+  `players`), aura (`_auraLevel` is a Player field), `globalDamageFlat` (applied at Player fire
+  sites only; `bullets.spawnPlayer` uses the passed damage verbatim, hit path reads `b.damage` raw).
+  2P/restart airtight: only `startRun`'s non-coop branch spawns it and `_teardownActors` (first line
+  of every startRun, incl. the DEAD/WIN R-restart) disposes+nulls it. Inheritance is spawn-locked
+  from raw `baselineStacks` (pause-menu Resonance rows are read-only; `openMetaPanel` is only
+  reachable from the terminal DEAD/WIN states, whose only exit is a fresh startRun).
+- **Max-Resonance demon DPS is modest:** `metaBreakpointBonus(10) = 0.023` → ×1.0115 dmg,
+  ×0.9885 cd → 1.0115/(0.55·0.9885) ≈ 1.86 DPS ≈ 48% of a BASE pistol player (3.85), and the share
+  only shrinks as the player takes in-run offers. `rateFloor` 0.5 is unreachable by ~40× (needs
+  bl.fireRate = 1.0 vs the real max 0.023).

@@ -144,15 +144,6 @@ export function metaLevelCost(n, cfg) {
   return Math.round(geo * toll);
 }
 
-/**
- * The AI ally's share of a player bonus (PURE). The ally makes no upgrade choices; it passively
- * receives a fraction of whatever the player has accrued so it stays useful without being overpowered
- * (B9: default share 0.2 → ally gets 20% of the player's bonus). `share` clamps to 0..1.
- *
- * @param {number} bonus the player's accrued bonus (e.g. statBonus damage fraction)
- * @param {number} share 0..1 fraction the ally receives (config.ALLY.upgradeShare)
- * @returns {number} the ally's bonus
- */
-export function allyShare(bonus, share) {
-  return bonus * Math.min(1, Math.max(0, share));
-}
+// (B9's allyShare lived here until CP-C: the AI Ally became the Demon companion, whose
+// permanent-baseline inheritance is core/demonInherit.js — a different contract, not a share
+// of IN-RUN bonuses. ADR-0042.)

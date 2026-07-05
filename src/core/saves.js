@@ -80,7 +80,10 @@ export function purchase(save, id) {
  * keys were cut; `luck` (Fortune) added — a permanent luck bonus fed into the offer roll.
  */
 export function baselineStacks(save) {
-  const zero = { damage: 0, fireRate: 0, speed: 0, guard: 0, luck: 0 };
+  // CP-C (ADR-0042): `demon` — the companion unlock rides this exact pipe (0 = locked, 1 = bought),
+  // so the gameBeaten all-zero gate below covers it for free. Every effect.stat MUST have a key
+  // here, or `result[stat] +=` silently produces NaN for a new node.
+  const zero = { damage: 0, fireRate: 0, speed: 0, guard: 0, luck: 0, demon: 0 };
   if (!save.gameBeaten) return zero;
   const result = { ...zero };
   for (const node of META_UPGRADES) {
