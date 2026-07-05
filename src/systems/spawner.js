@@ -42,16 +42,17 @@ const SURVIVOR_NAMES = [
  * player walking in and land a free contact hit before they can dodge.
  */
 function findSpot(rng, walls, radius, avoid = null) {
-  const hw = ARENA.width / 2 - 2;
+  const hw = ARENA.width / 2 - ROOMS.spawnMarginX;
   const hd = ARENA.depth / 2;
   const clear = (x, z) => {
-    if (walls.some((b) => circleVsBox(x, z, radius + 0.5, b))) return false;
+    if (walls.some((b) => circleVsBox(x, z, radius + ROOMS.spawnWallPad, b))) return false;
     if (avoid && Math.hypot(x - avoid.x, z - avoid.z) < avoid.r + radius) return false;
     return true;
   };
-  for (let tries = 0; tries < 30; tries++) {
+  for (let tries = 0; tries < ROOMS.spawnMaxTries; tries++) {
     const x = rng.range(-hw, hw);
-    const z = rng.range(-hd + 3, hd - 3); // anywhere but the very edges (entries live there)
+    // anywhere but the very edges (entries live there)
+    const z = rng.range(-hd + ROOMS.spawnMarginZ, hd - ROOMS.spawnMarginZ);
     if (clear(x, z)) return { x, z };
   }
   return { x: 0, z: 0 }; // dead center — never a door gap NOR an entry (they're all at edges)

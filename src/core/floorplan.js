@@ -31,29 +31,46 @@ function filledNeighbours(cells, x, y) {
   return n;
 }
 
+/** true if a candidate cell may be filled: on-grid, empty, and won't close a loop (keep the tree). */
+function canPlace(cells, x, y, gridSize) {
+  if (x < 0 || y < 0 || x >= gridSize || y >= gridSize) return false; // off-grid
+  if (cells.has(key(x, y))) return false; // occupied
+  return filledNeighbours(cells, x, y) < 2; // 2+ filled neighbours would close a loop
+}
+
+/**
+ * Grow `cell` in each direction toward the `roomCount` quota. Mutates `cells` and appends
+ * each new cell to `grown`; returns how many were added. The reject checks run BEFORE the
+ * coin flip so the rng stream advances identically (ADR-0013 determinism) — don't reorder.
+ */
+function growFrom(rng, cells, cell, grown, { roomCount, gridSize, rejectChance }) {
+  let added = 0;
+  for (const d of DIRS) {
+    if (cells.size >= roomCount) break;
+    const x = cell.x + DELTA[d].x;
+    const y = cell.y + DELTA[d].y;
+    if (!canPlace(cells, x, y, gridSize)) continue;
+    if (rng.next() < rejectChance) continue; // the organic-shape coin flip
+    const c = { x, y };
+    cells.set(key(x, y), c);
+    grown.push(c);
+    added++;
+  }
+  return added;
+}
+
 /** one BFS-expansion attempt; returns a Map cellKey -> {x,y} of size roomCount, or null if it stalled. */
-function tryExpand(rng, { roomCount, gridSize, rejectChance }) {
+function tryExpand(rng, opts) {
+  const { roomCount, gridSize } = opts;
   const start = { x: Math.floor(gridSize / 2), y: Math.floor(gridSize / 2) };
   const cells = new Map([[key(start.x, start.y), start]]);
   let queue = [start];
   // re-sweep the frontier until the quota is hit or a full pass adds nothing (stall)
   while (cells.size < roomCount) {
-    let added = 0;
     const next = [];
+    let added = 0;
     for (const cell of queue) {
-      for (const d of DIRS) {
-        if (cells.size >= roomCount) break;
-        const x = cell.x + DELTA[d].x;
-        const y = cell.y + DELTA[d].y;
-        if (x < 0 || y < 0 || x >= gridSize || y >= gridSize) continue; // off-grid
-        if (cells.has(key(x, y))) continue; // occupied
-        if (filledNeighbours(cells, x, y) >= 2) continue; // would close a loop — keep the tree
-        if (rng.next() < rejectChance) continue; // the organic-shape coin flip
-        const c = { x, y };
-        cells.set(key(x, y), c);
-        next.push(c);
-        added++;
-      }
+      added += growFrom(rng, cells, cell, next, opts);
       next.push(cell); // a cell can grow again on a later sweep (rejected ≠ dead)
     }
     if (added === 0) return null; // stalled — caller retries with fresh rolls
@@ -62,40 +79,25 @@ function tryExpand(rng, { roomCount, gridSize, rejectChance }) {
   return { cells, start };
 }
 
-/**
- * Generate a connected floor: a sparse TREE of rooms with the boss at the
- * farthest dead end. PURE + seeded (ADR-0013) → same seed, same floor.
- *
- * @param {{next:()=>number, int:(n:number)=>number}} rng the run rng
- * @param {{roomCount:number, gridSize?:number, rejectChance?:number, retries?:number}} opts
- * @returns {{rooms: Array<{id:number, x:number, y:number, type:string,
- *            neighbours: Record<string, number|null>, dist:number}>,
- *            startId:number, bossId:number, gridSize:number}}
- *   rooms[i].id === i; `dist` is BFS depth from the start; type ∈
- *   'start' | 'normal' | 'heal' | 'boss'. Neighbour links are symmetric.
- */
-export function generateFloorplan(rng, opts) {
-  const gridSize = opts.gridSize ?? 11;
-  const rejectChance = opts.rejectChance ?? 0.5;
-  const roomCount = Math.max(2, opts.roomCount);
-  const retries = opts.retries ?? 40;
-
+/** the retry-until-grown loop; falls back to a straight corridor for pathological configs. */
+function growOrCorridor(rng, { roomCount, gridSize, rejectChance, retries }) {
   // expansion can stall on unlucky rolls (all frontier cells rejected/blocked);
   // fresh rolls fix it — still deterministic, the retry consumes the same rng stream.
   let grown = null;
   for (let i = 0; i < retries && !grown; i++) {
     grown = tryExpand(rng, { roomCount, gridSize, rejectChance });
   }
-  if (!grown) {
-    // pathological config (e.g. roomCount ≈ grid area). Degrade: a straight
-    // corridor always fits and keeps every invariant (tree, dead-end boss).
-    const y = Math.floor(gridSize / 2);
-    const cells = new Map();
-    for (let x = 0; x < Math.min(roomCount, gridSize); x++) cells.set(key(x, y), { x, y });
-    grown = { cells, start: { x: 0, y } };
-  }
+  if (grown) return grown;
+  // pathological config (e.g. roomCount ≈ grid area). Degrade: a straight
+  // corridor always fits and keeps every invariant (tree, dead-end boss).
+  const y = Math.floor(gridSize / 2);
+  const cells = new Map();
+  for (let x = 0; x < Math.min(roomCount, gridSize); x++) cells.set(key(x, y), { x, y });
+  return { cells, start: { x: 0, y } };
+}
 
-  // build rooms with symmetric neighbour links
+/** materialise the grown cell-set into rooms with symmetric neighbour links; tag the start. */
+function buildRooms(grown) {
   const list = [...grown.cells.values()];
   const idOf = new Map(list.map((c, i) => [key(c.x, c.y), i]));
   const rooms = list.map((c, i) => {
@@ -107,8 +109,11 @@ export function generateFloorplan(rng, opts) {
   });
   const startId = idOf.get(key(grown.start.x, grown.start.y));
   rooms[startId].type = 'start';
+  return { rooms, startId };
+}
 
-  // BFS depth from the start (drives boss placement + the content difficulty ramp)
+/** BFS depth from the start into rooms[].dist (drives boss placement + the difficulty ramp). */
+function assignDepths(rooms, startId) {
   const seen = new Set([startId]);
   let frontier = [startId];
   let depth = 0;
@@ -127,37 +132,79 @@ export function generateFloorplan(rng, opts) {
     frontier = next;
     depth++;
   }
+}
 
+/**
+ * Place the boss on the FARTHEST dead end (the floor's journey) and one HEAL room on the
+ * next-farthest spare dead end — the v1 special; Phase 6b hangs shop/mini-boss/curse types
+ * on the same slot logic. A tree with 2+ rooms always has a non-start dead end. Returns the
+ * boss id.
+ */
+function assignSpecials(rooms, startId) {
   // dead ends = exactly one neighbour (the start never hosts a special even if it is one)
   const deadEnds = rooms.filter(
     (r) => r.id !== startId && DIRS.filter((d) => r.neighbours[d] != null).length === 1,
   );
-  // the boss takes the FARTHEST dead end — the floor's journey. A tree with 2+
-  // rooms always has a non-start dead end (every leaf but possibly the start).
   deadEnds.sort((a, b) => b.dist - a.dist);
   const boss = deadEnds[0];
   boss.type = 'boss';
-  // one HEAL room on the farthest REMAINING dead end (if any) — the v1 special;
-  // Phase 6b hangs shop/mini-boss/curse types on the exact same slot logic.
   if (deadEnds.length > 1) deadEnds[1].type = 'heal';
+  return boss.id;
+}
 
-  // per-node LAYOUT SEEDS, drawn once in node order (ADR-0032): buildRoom/populateRoom
-  // use makeRng(node.layoutSeed) instead of the shared run rng, so a room replays the
-  // exact same layout/spawns on every re-entry — run determinism is independent of the
-  // path the player walks (the rng-order trap the understand-pass flagged).
+/**
+ * Per-node LAYOUT SEEDS, drawn once in node order (ADR-0032): buildRoom/populateRoom use
+ * makeRng(node.layoutSeed) instead of the shared run rng, so a room replays the exact same
+ * layout/spawns on every re-entry — run determinism is independent of the path the player
+ * walks (the rng-order trap the understand-pass flagged).
+ */
+function assignLayoutSeeds(rng, rooms) {
   for (const r of rooms) r.layoutSeed = Math.floor(rng.next() * 2 ** 31);
+}
 
-  // seeded SURVIVOR quota on normal rooms (replaces the old index whitelist [2,5,7],
-  // which can't survive variable room counts) — the NPC help/leave economy stays alive.
+/**
+ * Seeded SURVIVOR quota on normal rooms (replaces the old index whitelist [2,5,7], which
+ * can't survive variable room counts) — the NPC help/leave economy stays alive.
+ */
+function assignSurvivors(rng, rooms, survivors) {
   const normals = rooms.filter((r) => r.type === 'normal');
-  let quota = Math.min(opts.survivors ?? 2, normals.length);
+  let quota = Math.min(survivors ?? 2, normals.length);
   while (quota > 0) {
     const pick = normals.splice(rng.int(normals.length), 1)[0];
     pick.survivor = true;
     quota--;
   }
+}
 
-  return { rooms, startId, bossId: boss.id, gridSize };
+/**
+ * Generate a connected floor: a sparse TREE of rooms with the boss at the
+ * farthest dead end. PURE + seeded (ADR-0013) → same seed, same floor.
+ *
+ * @param {{next:()=>number, int:(n:number)=>number}} rng the run rng
+ * @param {{roomCount:number, gridSize?:number, rejectChance?:number, retries?:number}} opts
+ * @returns {{rooms: Array<{id:number, x:number, y:number, type:string,
+ *            neighbours: Record<string, number|null>, dist:number}>,
+ *            startId:number, bossId:number, gridSize:number}}
+ *   rooms[i].id === i; `dist` is BFS depth from the start; type ∈
+ *   'start' | 'normal' | 'heal' | 'boss'. Neighbour links are symmetric.
+ *
+ * The rng is consumed in a fixed order — expansion coin-flips, then per-node layout
+ * seeds, then the survivor picks — so the seed→floor mapping stays stable (ADR-0013).
+ */
+export function generateFloorplan(rng, opts) {
+  const gridSize = opts.gridSize ?? 11;
+  const rejectChance = opts.rejectChance ?? 0.5;
+  const roomCount = Math.max(2, opts.roomCount);
+  const retries = opts.retries ?? 40;
+
+  const grown = growOrCorridor(rng, { roomCount, gridSize, rejectChance, retries });
+  const { rooms, startId } = buildRooms(grown);
+  assignDepths(rooms, startId);
+  const bossId = assignSpecials(rooms, startId);
+  assignLayoutSeeds(rng, rooms);
+  assignSurvivors(rng, rooms, opts.survivors);
+
+  return { rooms, startId, bossId, gridSize };
 }
 
 /**
