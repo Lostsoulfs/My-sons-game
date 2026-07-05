@@ -84,11 +84,15 @@ describe('alphaFactor (AoE-only burst credit)', () => {
     expect(alphaFactor({ charge: { maxDamage: 7, pierce: 3 } })).toBe(1);
     expect(alphaFactor({ damage: 4, pierce: 3 })).toBe(1);
   });
-  it('credits a heavy AoE nuke above 1, and more damage → more credit', () => {
-    const small = alphaFactor({ damage: 4, explosive: true, explodeRadius: 4 });
-    const nuke = alphaFactor({ damage: 11, explosive: true, explodeRadius: 8 });
-    expect(nuke).toBeGreaterThan(small);
-    expect(small).toBeGreaterThanOrEqual(1);
+  it('credits AoE above 1, and — in the linear region — more damage → more credit', () => {
+    // probe BELOW the cap (same radius) so the damage term actually moves the result, not a
+    // saturated pair that would pass even if the damage→credit slope were broken.
+    const cap = 1 + POWER_SCORE.ALPHA_GAIN * POWER_SCORE.ALPHA_CAP;
+    const a = alphaFactor({ damage: 3, explosive: true, explodeRadius: 5 });
+    const b = alphaFactor({ damage: 5, explosive: true, explodeRadius: 5 });
+    expect(a).toBeGreaterThan(1);
+    expect(b).toBeGreaterThan(a); // slope: isolating damage at fixed radius
+    expect(b).toBeLessThan(cap); // still linear, not saturated (else the slope is untested)
   });
   it('is capped (never exceeds 1 + GAIN·CAP)', () => {
     const huge = alphaFactor({ damage: 999, explosive: true, explodeRadius: 40 });
@@ -124,6 +128,17 @@ describe('tierForScore band lookup', () => {
     expect(tierForScore(8)).toBe('rare');
     expect(tierForScore(12)).toBe('epic');
     expect(tierForScore(999)).toBe('ultra');
+  });
+  it('pins the half-open [lo, hi) boundaries (the convention the roster test relies on)', () => {
+    expect(tierForScore(6.7)).toBe('rare'); // == rare.lo, belongs to rare
+    expect(tierForScore(6.69)).toBe('common'); // just under → common
+    expect(tierForScore(9.7)).toBe('epic');
+    expect(tierForScore(16.5)).toBe('ultra');
+  });
+  it('fails SAFE: an out-of-domain score (negative / NaN) clamps to the bottom tier, not ultra', () => {
+    expect(tierForScore(-1)).toBe('common');
+    expect(tierForScore(NaN)).toBe('common');
+    expect(tierForScore(Infinity)).toBe('common'); // broken factor → surfaces as a failed assertion
   });
 });
 

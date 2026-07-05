@@ -85,6 +85,12 @@ describe('the rarity pyramid (strict 8 / 7 / 5 / 2)', () => {
     expect(c).toBeLessThan(r);
     expect(r).toBeLessThan(e);
     expect(e).toBeLessThan(u);
+    // Golden magnitudes: ordering alone is implied by the band+contiguity tests, so it can't catch a
+    // proportional/units regression that keeps order. Pin the actual medians so a scale shift fails HERE.
+    expect(c).toBeCloseTo(4.73, 1);
+    expect(r).toBeCloseTo(7.5, 1);
+    expect(e).toBeCloseTo(12.88, 1);
+    expect(u).toBeCloseTo(17.13, 1);
   });
 
   it('TIER_BANDS are contiguous + ascending (no gaps, no overlap)', () => {

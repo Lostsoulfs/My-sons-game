@@ -1261,8 +1261,9 @@ export const PICKUPS = {
       { common: 62, rare: 30, epic: 8 }, // band 1 — mid
       { common: 50, rare: 36, epic: 14 }, // band 2 — the finale stretch
     ],
-    // boss chest: a hard fight always pays a weapon (no commons), leaning epic — this rare+ floor
-    // is SEPARATE from the (now-disabled) dry-streak pity and stays.
+    // boss chest: a hard fight always pays a weapon (no commons), leaning epic. NOTE this whole
+    // tier-weight engine is DORMANT since ADR-0030 ("no ground weapon drops" → room-clear OFFERS);
+    // the LIVE boss rare+ guarantee is the `bossTier` floor in core/offers.js, not this table.
     bossChestWeights: { common: 0, rare: 58, epic: 42 },
     // CP3: dry-streak pity DISABLED (harsh, no safety net). Helper (core/drops.js pityMinTier) stays
     // behind this flag; params kept for a future re-enable.
