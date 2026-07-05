@@ -666,6 +666,11 @@ export class Game {
       this._resolveHumanSkip(); // he waves you through — skip the fight, keep the reward
     } else {
       this.state = State.PLAYING; // he panics — the fight is on
+      // re-arm spawn grace at COMBAT start: the entry grace froze during the (untimed)
+      // choice overlay, and unlike other bosses the human fight has no banner-intro buffer
+      // for it to drain through — so anchor the ~1s protection to when the fight actually
+      // begins (he's standing on you), then it drains normally in PLAYING (ADR-0032).
+      for (const pl of this.players) if (pl.alive) pl.spawnSafe = ROOMS.entryGrace;
       audio.play(this.bosses[0]?.behavior?.roar ?? 'bossRoar');
       audio.setBossMusic('human'); // now the fight is real, swap to his theme
     }

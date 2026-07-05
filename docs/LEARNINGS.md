@@ -816,13 +816,44 @@ base*(1+growth)^i`. Removed the hand-set per-floor `diff` from `PROGRESSION.floo
 - **A "path-independence" determinism proof can lie by modelling the wrong seam** (ADR-0032
   irony — it warned about exactly this trap and then fell into it). The old `determinism.test.js`
   resolved survivors on the _room_ rng and drew a dead `rollDrop`, so it certified a property the
-  game lacked (survivors + offers actually ride the _run_ rng — `game.js:514`, `game.js:623`).
-  When a test claims a run-wide invariant, grep the production draw sites and confirm the test
-  drives THOSE functions, not a plausible-looking stand-in. Split the honest claims: room CONTENT
-  is node-seeded (path-independent); run-rng events (floorplan/offers/decisions) are order-
-  dependent by design.
+  game lacked (survivors + offers actually ride the _run_ rng — `_resolveSurvivor`,
+  `_presentNextOffer`→`generateOffer`). When a test claims a run-wide invariant, grep the
+  production draw sites and confirm the test drives THOSE functions, not a plausible-looking
+  stand-in. Split the honest claims: room CONTENT is node-seeded (path-independent); run-rng
+  events (floorplan/offers/decisions) are order-dependent by design. (Cite functions, not line
+  numbers, in comments — a review found these off by 3.)
 - **Connected-map spawns must clear the ENTRY, not just the old bottom door.** Any spawn logic
   written for the linear game assumed the S-only entrance (`findSpot` z-band, boss at top-center).
   On the graph you enter from N/S/E/W, so a spawn band or fixed boss slot can land a free contact
   hit. Belt-and-suspenders: `findSpot` avoids the entry point AND a non-flickering `spawnSafe`
   grace on entry (separate from `invuln`, which flickers the mesh and reads as "you got hit").
+
+## 2026-07-04 — connected-map hardening audit (c4d6fed): 3-reviewer adversarial pass
+
+- **A timer that lives in `update()` leaks whenever a state transition parks the game in a
+  non-updating state between arming it and the next tick.** `spawnSafe` (armed in `loadNode`)
+  only decrements in `Player.update`, which runs ONLY in `PLAYING`/`ROOM_CLEAR`. The human
+  decision-boss goes `loadNode` → `HUMAN_CHOICE` with no player tick, so the 1s grace froze
+  through the whole (untimed) A/B/C/D overlay and bled a full second of invuln into the boss
+  fight on a wrong pick. **Fixed** by re-arming `spawnSafe` at combat-start (`_onHumanChoice`
+  panic branch) — the human fight has no banner-intro to drain it through, unlike other bosses.
+  HUMAN_CHOICE is the only such state reachable straight from `loadNode` (OFFER is only entered
+  from a room already ticked in PLAYING, so the grace is spent by then).
+- **Entry-avoidance protects mobs/survivors but NOT the fixed-coord boss** (spawns at
+  `z = -depth/2 + DUO.spawnZOffset = -20`, exactly `ENTRY.N.z`). ~28% of boss rooms are entered
+  from the North → player lands on the boss. `entryGrace` gates all damage so it's a cosmetic
+  overlap, not a free hit — accepted/documented in ADR-0032, not fixed (boss spawn is fixed by
+  design for pattern telegraphs).
+- **The hardening changed `layoutRng` consumption** (widened `findSpot` z-band + the `avoid`
+  reject), so a given `layoutSeed` yields different positions than the feature commit. NOT a
+  bug: same-version re-entry still replays identically (backtracking holds) and seeds aren't
+  persisted across versions. `determinism.test.js` doesn't pin `findSpot`'s per-attempt draw
+  pattern — acceptable, since cross-version seed stability isn't a promised invariant.
+- **The rewritten `determinism.test.js` is honest** (5000 seeds → 0 throws, 0 collisions;
+  `generateOffer(rng,{})` never empty), but it's a REDUCED model, not a production golden
+  stream (prod fires offers per-living-player, skips heal/final-boss offers, adds SPAWN_ENEMIES
+  ring draws) — the header now says so. Self-comparison holds regardless, so no false green.
+- **Verified clean:** `findSpot` never spawns in a wall/OOB; the (0,0) fallback is unreachable
+  in normal play (0/20k deep rooms @40 enemies); `CENTER_CLEAR` doesn't over-reject rubble;
+  `openDoor→openDoors`/`openExit` rename fully propagated; corridor fallback exact at
+  `gridSize ≥ maxRooms`; `gridSize 17` inert for minimap (sizes from room bbox) and perf.

@@ -14,10 +14,10 @@ import { generateFloorplan, roomCountForFloor } from '../src/core/floorplan.js';
 // dead `rollDrop` seam and resolved survivors on the room rng; neither matches the
 // game, so those "proofs" certified properties the game didn't have):
 //
-//   • the RUN rng is consumed, in game order, by
-//       - generateFloorplan(this.rng)  once per floor           (game.js _startFloor)
-//       - generateOffer(this.rng)      once per room CLEAR       (game.js:623)
-//       - resolveDecision(this.rng)    on a survivor interaction (game.js:514)
+//   • the RUN rng is consumed by
+//       - generateFloorplan(this.rng)  once per floor            (game.js _startFloor)
+//       - generateOffer(this.rng)      once per living player's room clear (game.js _presentNextOffer)
+//       - resolveDecision(this.rng)    on a survivor interaction (game.js _resolveSurvivor)
 //     These are order/input-dependent BY DESIGN (a replay reproduces the inputs).
 //
 //   • room LAYOUT + SPAWNS never touch the run rng — buildRoom/populateRoom draw
@@ -26,8 +26,12 @@ import { generateFloorplan, roomCountForFloor } from '../src/core/floorplan.js';
 //     That decoupling is what makes backtracking safe, and it's proved on its own
 //     below (NOT by folding run-rng draws into a path-independence claim).
 //
-// Note: populateRoom itself is render-coupled (builds Enemy/Boss with the scene), so
-// we drive the pure, rng-consuming seams the run actually uses.
+// This transcript is a REDUCED model of the above seams, NOT a byte-for-byte replay of
+// production's stream — it draws one offer per non-start room and ignores co-op's
+// per-player offers, heal/final-boss offer skips, and the SPAWN_ENEMIES ring draws. That
+// is deliberate: each transcript is only compared to itself / another seed, so it proves
+// the seams are DETERMINISTIC and SEED-SENSITIVE — it does not assert a production golden
+// stream. (populateRoom is render-coupled, so we drive the pure rng-consuming seams only.)
 
 // One full run in canonical (graph) order, exercising every REAL run-rng seam.
 function runTranscript(seed, { floors = 3 } = {}) {
@@ -47,12 +51,13 @@ function runTranscript(seed, { floors = 3 } = {}) {
       if (node.type !== 'boss') {
         log.push(`spawn:${node.id}:${roomRng.chance(0.4) ? 'shooter' : 'chaser'}`);
       }
-      // survivor HELP/LEAVE resolves on the RUN rng in production (game.js:514) — so it
-      // rides the shared stream, and is order/input-dependent (not path-independent).
+      // survivor HELP/LEAVE resolves on the RUN rng in production (game.js _resolveSurvivor)
+      // — so it rides the shared stream, and is order/input-dependent (not path-independent).
       if (node.survivor) {
         log.push(`npc:${node.id}:${JSON.stringify(resolveDecision(rng, 'HELP'))}`);
       }
-      // every entered room clears into an OFFER — the real post-room run-rng draw (game.js:623)
+      // every entered room clears into an OFFER — the real post-room run-rng draw
+      // (game.js _presentNextOffer → generateOffer)
       if (node.type !== 'start') {
         log.push(
           `offer:${node.id}:${generateOffer(rng, {})
