@@ -2,7 +2,7 @@
 // items.js — the canonical OFFERABLE-ITEM registry (B9). PURE: no THREE, no game state.
 //
 // One entry per thing the room-clear offer screen can hand you, across three CATEGORIES:
-//   'upgrade' — player passives (damage / fire-rate / move-speed / max-life / guard / dmg-reduction)
+//   'upgrade' — player passives (damage / fire-rate / move-speed / guard / luck / flat global-damage)
 //   'mod'     — weapon mods that buff your guns via the existing BULLET behavior flags
 //   'weapon'  — the guns themselves (the 8 in config.WEAPONS)
 // Each item is graded into a rarity TIER (common < rare < epic < ultra). `core/offers.js` pools from
@@ -11,7 +11,7 @@
 // entities/pickups.js) keeps it unit-testable and one source of truth for the offer system.
 // =====================================================================
 
-import { UPGRADES, DAMAGE_REDUCTION, GUARD, WEAPON_MODS, PICKUPS } from '../config.js';
+import { UPGRADES, GUARD, WEAPON_MODS, PICKUPS } from '../config.js';
 import { marginalBonus } from './scaling.js';
 
 /** rarity tiers, low → high (the offer system's own ladder; adds `ultra` for the guard). */
@@ -58,22 +58,8 @@ export const ITEMS = [
     tags: ['sustain'],
     effect: { kind: 'heal', amount: PICKUPS.healAmount },
   },
-  {
-    id: 'MAX_HP_UP',
-    name: 'Max Life Up',
-    category: 'upgrade',
-    tier: 'rare',
-    tags: ['sustain'],
-    effect: { kind: 'maxLife', amount: 1 },
-  },
-  {
-    id: 'DMG_REDUCT',
-    name: 'Tough Hide',
-    category: 'upgrade',
-    tier: 'rare',
-    tags: ['defense'],
-    effect: { kind: 'damageReduction' },
-  },
+  // CP4 (ADR-0037): MAX_HP_UP (HP growth) and DMG_REDUCT ("Tough Hide" soak) were CUT — incremental
+  // survivability flattened the danger. Defense is now ONLY the all-or-nothing Guard block-charge.
   {
     id: 'GUARD',
     name: 'Guard',
@@ -91,14 +77,15 @@ export const ITEMS = [
     effect: { kind: 'guard', charges: GUARD.ultraCharges },
   },
   {
-    // ADR-0030: the rare GLOBAL max-damage reward — a permanent multiplier across ALL weapons
-    // (per-weapon damage caps at 9 picks; this is the offer-only, top-tier way to push damage further).
+    // ADR-0030 / CP4 (ADR-0037): the ultra GLOBAL damage reward. Reworked from a runaway MULTIPLIER
+    // to a FLAT +1 per-shot across ALL weapons, hard-capped at 3 stacks — a rare, bounded power spike
+    // (added BEFORE damageMul: (base+flat)·damageMul) instead of an exponential snowball.
     id: 'GLOBAL_DAMAGE',
     name: 'Weapon Mastery',
     category: 'upgrade',
     tier: 'ultra',
     tags: ['offense', 'feat'],
-    effect: { kind: 'globalDamage', mult: 1.3 },
+    effect: { kind: 'globalDamageFlat', add: 1, maxStacks: 3 },
   },
   {
     // ADR-0030 LUCK (positive dial): biases future offer tiers UP, capped at OFFERS.luck.maxStacks.
@@ -231,18 +218,10 @@ export function blurbFor(item, ctx = {}) {
       const pct = Math.round(marginalBonus(nextStack, u.maxBonus, u.half) * 100);
       return `+${pct}% ${STAT_LABEL[e.stat] ?? e.stat}`;
     }
-    case 'damageReduction': {
-      const pct = Math.round(
-        marginalBonus(nextStack, DAMAGE_REDUCTION.maxBonus, DAMAGE_REDUCTION.half) * 100,
-      );
-      return `+${pct}% damage reduction`;
-    }
-    case 'globalDamage':
-      return `+${Math.round((e.mult - 1) * 100)}% damage (all weapons)`;
+    case 'globalDamageFlat':
+      return `+${e.add} flat damage, all weapons (max ${e.maxStacks})`;
     case 'luck':
       return '+1 luck — richer offers ahead';
-    case 'maxLife':
-      return `+${e.amount} max life`;
     case 'heal':
       return `Heal ${e.amount} hearts`;
     case 'guard':

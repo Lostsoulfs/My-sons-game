@@ -13,7 +13,6 @@ import {
   PALETTE,
   CAPS,
   UPGRADES,
-  DAMAGE_REDUCTION,
   OFFERS,
   GUARD,
   GRAPHICS,
@@ -55,14 +54,15 @@ export class Player {
     this.radius = PLAYER.radius;
     this._baseColor = new THREE.Color(color);
     this.slotsUnlocked = 1; // grows as bosses are beaten (set by game)
-    // permanent baseline stacks from the Echoes meta-layer (B10 / ADR-0029); all-zero pre-beat
+    // permanent baseline stacks from the Echoes meta-layer (B10 / ADR-0029); all-zero pre-beat.
+    // CP4 (ADR-0037): `hearts` (Vitality) + `damageReduction` (Tough Hide) nodes were cut; `luck`
+    // (Fortune) added — a permanent luck bonus fed into the offer roll.
     this._baseline = baseline ?? {
       damage: 0,
       fireRate: 0,
       speed: 0,
-      damageReduction: 0,
-      hearts: 0,
       guard: 0,
+      luck: 0,
     };
     this.reset(0, 0);
   }
@@ -71,7 +71,7 @@ export class Player {
     this.x = x;
     this.z = z;
     const bl = this._baseline;
-    this.maxHearts = Math.min(CAPS.maxHearts, PLAYER.maxHearts + bl.hearts); // grows via offered MAX_HP_UP
+    this.maxHearts = PLAYER.maxHearts; // CP4: HP no longer grows (MAX_HP_UP + Vitality cut) — fixed pool
     this.hearts = this.maxHearts;
     this.alive = true;
     this.fireTimer = 0;
@@ -82,15 +82,13 @@ export class Player {
     // (B9b) adds one; the derived stats come from the diminishing-returns curve (config.UPGRADES +
     // core/scaling.js) so power ramps over the run instead of capping early.
     // GLOBAL body/run stats live here; per-weapon damage/fireRate/mods live in _weaponUpgrades (ADR-0030).
-    // Baseline speed/damageReduction are NOT seeded in as stacks (ADR-0031): the permanent Resonance
-    // % is a standalone bonus applied in _recomputeUpgrades, kept separate from the in-run curve.
+    // Baseline speed is NOT seeded in as a stack (ADR-0031): the permanent Resonance % is a standalone
+    // bonus applied in _recomputeUpgrades, kept separate from the in-run curve.
     this._up = {
       speed: 0,
-      damageReduction: 0,
-      luck: 0, // ADR-0030 positive dial — biases offer tiers up (capped in the offer engine)
+      luck: 0, // positive dial — biases offer tiers up via the CP4 luck curve (capped in the engine)
     };
     this.guardCharges = bl.guard; // permanent guard charges from the meta-layer (added to offer charges)
-    this._drCarry = 0; // banked fractional damage-reduction (core/defense.js carry accumulator)
     // per-weapon per-stat upgrade PICK-COUNTS (ADR-0030): key -> {damage,fireRate,pierce,bounces,
     // bulletSpeed,explodeRadius}, each capped at CAPS.upgradesPerStat. Kept on cycle, wiped on replace.
     this._weaponUpgrades = {};
@@ -98,7 +96,7 @@ export class Player {
     // PERSISTS across weapon swaps (no free reload by switching away and back). Lazily initialised.
     this._clip = {}; // key -> reload state {ammo, reloading, reloadT}  (core/reload.js)
     this._heatState = {}; // key -> heat state {heat, overheated}         (core/heat.js)
-    this._globalDmgMul = 1; // rare global max-damage reward (multiplies final shot damage, uncapped)
+    this._globalDamageFlat = 0; // CP4: ultra reward — flat +add per shot across all guns, capped at 3
     this.offerRecent = []; // recently-offered item ids → anti-repeat (OFFERS.recentMemory)
     this.offerSeenWeapons = {}; // weapon id → times OFFERED this run (see-it-once decay, ADR-0030)
     this.offerCommonStreak = 0; // consecutive commons TAKEN → drives offer pity (per player)
@@ -112,8 +110,7 @@ export class Player {
   revive(x, z) {
     this.x = x;
     this.z = z;
-    this.hearts = this.maxHearts; // upgrades (incl. max-life) persist through a life-loss
-    this._drCarry = 0; // a full restore wipes banked reduced-damage (don't carry it past a revive)
+    this.hearts = this.maxHearts; // upgrades persist through a life-loss
     this.alive = true;
     this.invuln = 1.4;
     this.mesh.position.set(x, 0, z);
@@ -329,7 +326,7 @@ export class Player {
     const dirs = spreadDirs(aim.x, aim.z, w.pellets, w.spreadDeg);
     for (const d of dirs) {
       game.bullets.spawnPlayer(this.x, this.z, d.x, d.z, {
-        damage: w.damage * this.damageMul * this._globalDmgMul, // capped mult × rare global max-damage
+        damage: (w.damage + this._globalDamageFlat) * this.damageMul, // CP4: flat global +dmg, then mult
         speed: w.bulletSpeed * (1 + m.bulletSpeed * WEAPON_MODS.bulletSpeed), // + bullet-speed mod
         explosive: w.explosive || m.explodeRadius > 0, // the blast mod makes any gun explode
         explodeRadius: (w.explodeRadius ?? 0) + m.explodeRadius * WEAPON_MODS.explodeRadius,
@@ -371,10 +368,10 @@ export class Player {
       for (const e of game.enemies) {
         if (e.dead || (orb.cd.get(e) || 0) > 0) continue;
         if (circleVsCircle(bx, bz, 0.5, e.x, e.z, e.radius)) {
-          // global max-damage applies to blades too ("all weapons"); fire-rate speeds up the
+          // global flat +dmg applies to blades too ("all weapons"); fire-rate speeds up the
           // per-enemy hit tick so FIRE_RATE_UP is a live pick on the orbital (ADR-0030 review)
           e.hurt(
-            def.damage * this.damageMul * this._globalDmgMul,
+            (def.damage + this._globalDamageFlat) * this.damageMul,
             game,
             normalize(e.x - this.x, e.z - this.z), // shove away (B7)
           );
@@ -435,7 +432,7 @@ export class Player {
     const m = this._wUp(); // per-weapon mod PICK-COUNTS (ADR-0030) stack onto the charged shot too
     game.weaponfx?.muzzle(this.x, this.z, aim, this._weaponFx, this._fxIntensity * (0.8 + 0.6 * f));
     game.bullets.spawnPlayer(this.x, this.z, aim.x, aim.z, {
-      damage: lerp(c.minDamage, c.maxDamage) * this.damageMul * this._globalDmgMul,
+      damage: (lerp(c.minDamage, c.maxDamage) + this._globalDamageFlat) * this.damageMul,
       speed: lerp(c.minSpeed, c.maxSpeed) * (1 + m.bulletSpeed * WEAPON_MODS.bulletSpeed),
       pierce: Math.round(lerp(0, c.pierce)) + m.pierce * WEAPON_MODS.pierce,
       bounces: m.bounces * WEAPON_MODS.bounces,
@@ -455,14 +452,9 @@ export class Player {
 
   hurt(dmg, game) {
     if (game.godMode || this.invuln > 0 || this.spawnSafe > 0 || !this.alive) return;
-    // guard charges + damage-reduction resolve BEFORE any heart comes off (core/defense.js, B9b)
-    const res = resolveIncoming(dmg, {
-      guardCharges: this.guardCharges,
-      reduction: this.damageReductionFrac,
-      carry: this._drCarry,
-    });
+    // a guard charge (if any) blocks the WHOLE hit first (core/defense.js). CP4: % soak removed.
+    const res = resolveIncoming(dmg, { guardCharges: this.guardCharges });
     this.guardCharges = res.guardCharges;
-    this._drCarry = res.carry;
     this.invuln = PLAYER.invuln; // a blocked hit still spends the i-frame window (it WAS a hit)
 
     if (res.blocked) {
@@ -476,7 +468,7 @@ export class Player {
       return;
     }
 
-    this.hearts -= res.heartsLost; // whole hearts only (damage reduction banks the remainder)
+    this.hearts -= res.heartsLost; // whole hearts (a hit that isn't guard-blocked lands in full)
     game.juice.addTrauma(game.JUICE.traumaOnHurt);
     game.juice.hitStop(game.JUICE.hitStopOnHurt);
     game.particles.burst(this.x, this.z, 10, this._baseColor.getHex());
@@ -512,15 +504,12 @@ export class Player {
       CAPS.fireRateMin,
       1 - statBonus(w.fireRate, UPGRADES.fireRate.maxBonus, UPGRADES.fireRate.half) - bl.fireRate,
     );
-    // move-speed + damage-reduction stay GLOBAL (they buff the body/run, not the gun)
+    // move-speed stays GLOBAL (it buffs the body/run, not the gun). CP4: damage-reduction soak cut.
     this.speed = Math.min(
       PLAYER.speed * CAPS.speedMul,
       PLAYER.speed *
         (1 + statBonus(this._up.speed, UPGRADES.speed.maxBonus, UPGRADES.speed.half) + bl.speed),
     );
-    this.damageReductionFrac =
-      statBonus(this._up.damageReduction, DAMAGE_REDUCTION.maxBonus, DAMAGE_REDUCTION.half) +
-      bl.damageReduction;
   }
 
   /** apply a survivor outcome or pickup buff/debuff. The UPs add one stack each
@@ -568,7 +557,6 @@ export class Player {
         DAMAGE_UP: w.damage, // per-weapon → the marginal "+X%" blurb reflects THIS gun (ADR-0030)
         FIRE_RATE_UP: w.fireRate,
         SPEED_UP: this._up.speed,
-        DMG_REDUCT: this._up.damageReduction,
       },
       // ADR-0030 weapon-aware gating: skip maxed stats + block explosive on explosive/fast guns.
       // weaponExplosive includes the gun's OWN blast picks so one MOD_BLAST stops further offers;
@@ -585,7 +573,10 @@ export class Player {
       weaponFast: (def.cooldown ?? 1) <= OFFERS.fastWeaponCd,
       weaponOrbital: !!def.orbital,
       ownedCount: this.slots.length,
-      luck: this._up.luck, // positive dial (the engine clamps it)
+      luck: this._up.luck, // in-run positive dial (the engine clamps it)
+      permLuck: this._baseline.luck, // CP4: permanent Fortune luck → the D2 offer curve
+      curse: 0, // CP4: negative dial — math is wired; the SOURCE (ambush spawns) is Phase 6b
+      globalDamageFlat: this._globalDamageFlat, // CP4: gate GLOBAL_DAMAGE once its flat stacks max out
       seenWeapons: this.offerSeenWeapons, // see-it-once weapon decay
       commonStreak: this.offerCommonStreak,
     };
@@ -622,16 +613,8 @@ export class Player {
           this._bumpWeaponStat(e.stat);
         }
         break;
-      case 'damageReduction':
-        this._up.damageReduction++;
-        this._recomputeUpgrades();
-        break;
       case 'heal':
         this.hearts = Math.min(this.maxHearts, this.hearts + e.amount);
-        break;
-      case 'maxLife':
-        this.maxHearts = Math.min(CAPS.maxHearts, this.maxHearts + e.amount);
-        this.hearts = Math.min(this.maxHearts, this.hearts + e.amount); // a new heart container fills
         break;
       case 'guard':
         this.guardCharges += e.charges;
@@ -642,8 +625,8 @@ export class Player {
         if ((w[e.flag] ?? 0) < CAPS.upgradesPerStat) w[e.flag]++;
         break;
       }
-      case 'globalDamage': // rare top-tier: a permanent damage multiplier across ALL weapons
-        this._globalDmgMul *= e.mult;
+      case 'globalDamageFlat': // CP4 ultra: flat +add per shot across ALL weapons, capped at maxStacks
+        this._globalDamageFlat = Math.min(e.maxStacks, this._globalDamageFlat + e.add);
         break;
       case 'luck': // ADR-0030 positive dial (global, like speed — it buffs the run, not the gun)
         this._up.luck++;

@@ -19,8 +19,8 @@ beforeEach(() => saves.reset());
 
 describe('nodeById', () => {
   it('finds a known node by id', () => {
-    expect(nodeById('vitality')).toBeDefined();
-    expect(nodeById('vitality').id).toBe('vitality');
+    expect(nodeById('aegis')).toBeDefined();
+    expect(nodeById('aegis').id).toBe('aegis');
   });
   it('returns undefined for unknown id', () => {
     expect(nodeById('NOT_REAL')).toBeUndefined();
@@ -31,14 +31,14 @@ describe('nodeById', () => {
 
 describe('costOf', () => {
   it('returns the cost array entry for a valid level', () => {
-    const node = nodeById('vitality'); // maxLevel 2, cost [60, 120]
-    expect(costOf('vitality', 0)).toBe(node.cost[0]);
-    expect(costOf('vitality', 1)).toBe(node.cost[1]);
+    const node = nodeById('aegis'); // maxLevel 2, cost [80, 160]
+    expect(costOf('aegis', 0)).toBe(node.cost[0]);
+    expect(costOf('aegis', 1)).toBe(node.cost[1]);
   });
   it('returns Infinity at or past maxLevel', () => {
-    const node = nodeById('vitality');
-    expect(costOf('vitality', node.maxLevel)).toBe(Infinity);
-    expect(costOf('vitality', node.maxLevel + 1)).toBe(Infinity);
+    const node = nodeById('aegis');
+    expect(costOf('aegis', node.maxLevel)).toBe(Infinity);
+    expect(costOf('aegis', node.maxLevel + 1)).toBe(Infinity);
   });
   it('returns Infinity for unknown id', () => {
     expect(costOf('NOT_REAL', 0)).toBe(Infinity);
@@ -53,14 +53,14 @@ describe('normalizeSave', () => {
       v: 1,
       echoes: 150,
       gameBeaten: true,
-      upgrades: { vitality: 1, sharpness: 2 },
+      upgrades: { aegis: 1, sharpness: 2 },
       stats: { runs: 5, wins: 2, bestFloor: 3, bossesBeaten: 8 },
     };
     const out = normalizeSave(raw);
     expect(out.v).toBe(1);
     expect(out.echoes).toBe(150);
     expect(out.gameBeaten).toBe(true);
-    expect(out.upgrades.vitality).toBe(1);
+    expect(out.upgrades.aegis).toBe(1);
     expect(out.upgrades.sharpness).toBe(2);
     expect(out.stats.runs).toBe(5);
     expect(out.stats.wins).toBe(2);
@@ -95,20 +95,20 @@ describe('normalizeSave', () => {
   });
 
   it('drops unknown upgrade ids', () => {
-    const out = normalizeSave({ upgrades: { NOT_REAL: 5, vitality: 1 } });
+    const out = normalizeSave({ upgrades: { NOT_REAL: 5, aegis: 1 } });
     expect(out.upgrades.NOT_REAL).toBeUndefined();
-    expect(out.upgrades.vitality).toBe(1);
+    expect(out.upgrades.aegis).toBe(1);
   });
 
   it('clamps upgrade levels to 0..maxLevel', () => {
-    const node = nodeById('vitality'); // maxLevel 2
-    const out = normalizeSave({ upgrades: { vitality: 99 } });
-    expect(out.upgrades.vitality).toBe(node.maxLevel);
+    const node = nodeById('aegis'); // maxLevel 2
+    const out = normalizeSave({ upgrades: { aegis: 99 } });
+    expect(out.upgrades.aegis).toBe(node.maxLevel);
   });
 
   it('coerces negative upgrade levels to 0', () => {
-    const out = normalizeSave({ upgrades: { vitality: -3 } });
-    expect(out.upgrades.vitality).toBe(0);
+    const out = normalizeSave({ upgrades: { aegis: -3 } });
+    expect(out.upgrades.aegis).toBe(0);
   });
 
   it('coerces bad stat fields to 0', () => {
@@ -136,7 +136,7 @@ describe('normalizeSave idempotency', () => {
       v: 1,
       echoes: 77.7,
       gameBeaten: true,
-      upgrades: { vitality: 99, NOT_REAL: 2, sharpness: 1 },
+      upgrades: { aegis: 99, NOT_REAL: 2, sharpness: 1 },
       stats: { runs: 3, wins: 1, bestFloor: 2, bossesBeaten: 4 },
     };
     const once = normalizeSave(raw);
@@ -179,53 +179,53 @@ describe('canAfford', () => {
 
   it('returns false when echoes are insufficient', () => {
     const save = { echoes: 1, upgrades: {}, gameBeaten: true };
-    expect(canAfford(save, 'vitality')).toBe(false); // costs 60
+    expect(canAfford(save, 'aegis')).toBe(false); // costs 80
   });
 
   it('returns true when affordable', () => {
     const save = { echoes: 9999, upgrades: {}, gameBeaten: true };
-    expect(canAfford(save, 'vitality')).toBe(true);
+    expect(canAfford(save, 'aegis')).toBe(true);
   });
 
   it('returns false when already at maxLevel', () => {
-    const node = nodeById('vitality');
-    const save = { echoes: 9999, upgrades: { vitality: node.maxLevel }, gameBeaten: true };
-    expect(canAfford(save, 'vitality')).toBe(false);
+    const node = nodeById('aegis');
+    const save = { echoes: 9999, upgrades: { aegis: node.maxLevel }, gameBeaten: true };
+    expect(canAfford(save, 'aegis')).toBe(false);
   });
 });
 
 describe('purchase (pure)', () => {
   it('deducts echoes and increments level', () => {
     const before = { echoes: 9999, upgrades: {}, gameBeaten: true };
-    const after = purchase(before, 'vitality');
-    expect(after.echoes).toBe(9999 - costOf('vitality', 0));
-    expect(after.upgrades.vitality).toBe(1);
+    const after = purchase(before, 'aegis');
+    expect(after.echoes).toBe(9999 - costOf('aegis', 0));
+    expect(after.upgrades.aegis).toBe(1);
   });
 
   it('returns the input unchanged when unaffordable', () => {
     const save = { echoes: 1, upgrades: {}, gameBeaten: true };
-    expect(purchase(save, 'vitality')).toBe(save);
+    expect(purchase(save, 'aegis')).toBe(save);
   });
 
   it('returns the input unchanged when already maxed', () => {
-    const node = nodeById('vitality');
-    const save = { echoes: 9999, upgrades: { vitality: node.maxLevel }, gameBeaten: true };
-    expect(purchase(save, 'vitality')).toBe(save);
+    const node = nodeById('aegis');
+    const save = { echoes: 9999, upgrades: { aegis: node.maxLevel }, gameBeaten: true };
+    expect(purchase(save, 'aegis')).toBe(save);
   });
 
   it('does not mutate the input', () => {
     const before = { echoes: 9999, upgrades: {}, gameBeaten: true };
     const beforeEchoes = before.echoes;
-    purchase(before, 'vitality');
+    purchase(before, 'aegis');
     expect(before.echoes).toBe(beforeEchoes);
-    expect(before.upgrades.vitality).toBeUndefined();
+    expect(before.upgrades.aegis).toBeUndefined();
   });
 
   it('caps level at maxLevel after multiple purchases', () => {
-    const node = nodeById('vitality'); // maxLevel 2
+    const node = nodeById('aegis'); // maxLevel 2
     let save = { echoes: 99999, upgrades: {}, gameBeaten: true };
-    for (let i = 0; i < node.maxLevel + 5; i++) save = purchase(save, 'vitality');
-    expect(save.upgrades.vitality).toBe(node.maxLevel);
+    for (let i = 0; i < node.maxLevel + 5; i++) save = purchase(save, 'aegis');
+    expect(save.upgrades.aegis).toBe(node.maxLevel);
   });
 });
 
@@ -237,7 +237,7 @@ describe('the beat-the-game gate', () => {
       v: 1,
       echoes: 9999,
       gameBeaten: false,
-      upgrades: { vitality: 2, sharpness: 3, swiftness: 3, rapid: 3, toughHide: 2, aegis: 2 },
+      upgrades: { sharpness: 3, swiftness: 3, rapid: 3, aegis: 2, fortune: 5 },
       stats: {},
     });
     const stacks = baselineStacks(save);
@@ -249,10 +249,10 @@ describe('the beat-the-game gate', () => {
       v: 1,
       echoes: 9999,
       gameBeaten: true,
-      upgrades: { vitality: 1 },
+      upgrades: { aegis: 1 },
       stats: {},
     });
-    expect(baselineStacks(save).hearts).toBe(1);
+    expect(baselineStacks(save).guard).toBe(1);
   });
 
   it('baselineStacks maps every node to the right stat key and respects level', () => {
@@ -264,7 +264,7 @@ describe('the beat-the-game gate', () => {
       const expected =
         node.effect.curve === 'percent'
           ? metaBreakpointBonus(node.maxLevel, META_CURVE) // ADR-0031: standalone % curve
-          : node.effect.perLevel * node.maxLevel; // flat nodes (vitality/aegis) — unchanged
+          : node.effect.perLevel * node.maxLevel; // flat nodes (aegis/fortune)
       expect(stacks[node.effect.stat]).toBeCloseTo(expected);
     }
   });
@@ -273,13 +273,13 @@ describe('the beat-the-game gate', () => {
     // saves was reset in beforeEach → gameBeaten=false, echoes=0
     // Manually force echoes high without going through the gated path
     saves._v = { ...saves.get(), echoes: 99999 };
-    expect(saves.canBuy('vitality')).toBe(false);
+    expect(saves.canBuy('aegis')).toBe(false);
   });
 
   it('saves.canBuy returns true after recordWin', () => {
     saves._v = { ...saves.get(), echoes: 99999 };
     saves.recordWin();
-    expect(saves.canBuy('vitality')).toBe(true);
+    expect(saves.canBuy('aegis')).toBe(true);
   });
 
   it('addEchoes no-ops while !gameBeaten', () => {
@@ -344,10 +344,10 @@ describe('saves singleton (economy)', () => {
     saves.recordWin();
     saves.addEchoes(9999);
     const before = saves.get().echoes;
-    const result = saves.buy('vitality');
+    const result = saves.buy('aegis');
     expect(result).toBe(true);
-    expect(saves.get().upgrades.vitality).toBe(1);
-    expect(saves.get().echoes).toBe(before - costOf('vitality', 0));
+    expect(saves.get().upgrades.aegis).toBe(1);
+    expect(saves.get().echoes).toBe(before - costOf('aegis', 0));
   });
 
   it('buy returns false when canBuy is false (unaffordable)', () => {
@@ -362,7 +362,7 @@ describe('saves singleton (economy)', () => {
   it('reset wipes everything back to defaults', () => {
     saves.recordWin();
     saves.addEchoes(200);
-    saves.buy('vitality');
+    saves.buy('aegis');
     saves.reset();
     expect(saves.get().echoes).toBe(0);
     expect(saves.get().gameBeaten).toBe(false);

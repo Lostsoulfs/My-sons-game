@@ -320,7 +320,8 @@ export const PROGRESSION = {
 // asymptotes so the curve is what you feel.
 export const CAPS = {
   lives: { start: 3, max: 5 }, // start with 3, can grow to 5
-  maxHearts: 12, // hard ceiling on per-player hearts (the offered MAX_HP_UP grows it from PLAYER.maxHearts)
+  // CP4 (ADR-0037): the `maxHearts` ceiling was removed with HP growth (MAX_HP_UP + Vitality cut) —
+  // hearts are a fixed pool (PLAYER.maxHearts), so no per-player ceiling is needed.
   damageMul: 2.0, // hard ceiling on the damage multiplier (curve asymptote = +100%)
   fireRateMin: 0.4, // cooldown floor (curve asymptote = -60% cooldown)
   speedMul: 1.6, // hard ceiling on move speed (curve asymptote = +60%)
@@ -1332,10 +1333,11 @@ export const OFFERS = {
   // once you already hold more than one gun, weapon-category offers get this extra down-weight
   // (invest in what you have — NEW weapons get rarer after the first pick).
   extraWeaponDecay: 0.4,
-  // ADR-0030 LUCK (the positive dial): each stack multiplies the rare+ tier weights on the offer
-  // roll. HARD-CAPPED so luck biases but never guarantees. (The Curse/danger dial — negative luck
-  // spawning ambushes — ships with the connected-map ADR, where roaming spawns live.)
-  luck: { maxStacks: 9, tierWeightBonus: 0.12 },
+  // LUCK (the positive dial): in-run LUCK_UP picks bias offer tiers up. `maxStacks` caps the in-run
+  // stack count (past it LUCK_UP leaves the pool — no dead card). CP4 (ADR-0037): the flat
+  // `tierWeightBonus` was REPLACED by the D2 diminishing curve in core/luck.js (config.LUCK); this
+  // block now only owns the in-run stack cap.
+  luck: { maxStacks: 9 },
   // see-it-once (Isaac-style): every time a WEAPON is offered, its future offer weight is
   // multiplied by this — offers narrow over a run instead of repeating the same guns.
   seenWeaponDecay: 0.5,
@@ -1352,12 +1354,22 @@ export const GUARD = {
     rumble: { strong: 0.25, weak: 0.15, ms: 90 },
   },
 };
-// damage reduction stacks on the same diminishing-returns curve as UPGRADES (core/scaling.js statBonus).
-// Applied as a deterministic % with a CARRY accumulator (core/defense.js) so whole-heart HP still feels
-// a true fraction without ever going fractional — no RNG (fits the "skill, never chance" design ethic).
-export const DAMAGE_REDUCTION = {
-  maxBonus: 0.4, // asymptotic ceiling — never exceeds −40% incoming damage
-  half: 8, // stacks to reach half of maxBonus (high = small per pick, like UPGRADES)
+// CP4 (ADR-0037): the percentage damage-reduction SOAK (`DMG_REDUCT` offer + `toughHide` meta node +
+// the core/defense.js carry accumulator) was CUT — incremental survivability flattened the danger.
+// Defense is now ONLY the Guard block-charge (all-or-nothing, above), which stays skill-legible.
+
+// CP4 (ADR-0037): LUCK / CURSE as a D2-magic-find curve. In-run luck (LUCK_UP picks) + permanent
+// Fortune (META_UPGRADES) feed a diminishing-returns curve (core/luck.js over core/scaling.js
+// statBonus) → a multiplier on the rare+ offer-tier weights. CURSE is negative luck, only PARTIALLY
+// offset by luck on a curve (even at high luck a point of curse still bites ~−25% of the good-drop
+// bonus). The curse SOURCE (ambush/elite spawns) is Phase 6b; here `curse` defaults to 0 — this ships
+// the MATH + the dial so 6b just feeds it a number.
+export const LUCK = {
+  max: 0.9, // asymptotic luck-bonus ceiling → rare+ weight ×(1+max) at most (biases, never guarantees)
+  half: 6, // combined luck "stacks" to reach half of `max` (the magic-find diminishing shape)
+  curseWeight: 0.5, // each curse point removes up to this much of the luck bonus…
+  curseLuckDamp: 0.5, // …damped by luck: offset = curse·curseWeight·(1 − curseLuckDamp·luckBonus/max)
+  goodMulMin: 0.15, // floor on the rare+ multiplier under heavy curse (drops thin out, never vanish)
 };
 // B9: weapon-mod amounts (applied to the player's guns via the existing BULLET behavior flags)
 export const WEAPON_MODS = {
@@ -1402,21 +1414,14 @@ export const META_CURVE = {
 
 // META_UPGRADES — the Resonance upgrade tree.
 // Two node KINDS:
-//   • percent nodes (effect.curve:'percent') — sharpness/swiftness/rapid/toughHide. A slow,
-//     steep, standalone % curve (META_CURVE + costBase/costGrowth), applied ON TOP of the
-//     in-run stat, not mixed into it — see core/saves.js baselineStacks + entities/player.js.
-//   • flat nodes (effect.perLevel) — vitality/aegis. Small integer stacks (+1 heart/guard per
-//     level); `cost` is a fixed array, one entry per level (length === maxLevel). Unchanged.
+//   • percent nodes (effect.curve:'percent') — sharpness/swiftness/rapid. A slow, steep, standalone
+//     % curve (META_CURVE + costBase/costGrowth), applied ON TOP of the in-run stat, not mixed into
+//     it — see core/saves.js baselineStacks + entities/player.js.
+//   • flat nodes (effect.perLevel) — aegis/fortune. Small stacks per level; `cost` is a fixed array,
+//     one entry per level (length === maxLevel).
+// CP4 (ADR-0037): the `vitality` (+max heart) and `toughHide` (+damage-reduction) nodes were CUT —
+// HP growth and soak flattened danger. `fortune` (permanent +luck) is the new premium node.
 export const META_UPGRADES = [
-  {
-    id: 'vitality',
-    name: 'Vitality',
-    desc: '+1 max heart',
-    icon: '❤️',
-    maxLevel: 2,
-    cost: [60, 120],
-    effect: { stat: 'hearts', perLevel: 1 },
-  },
   {
     id: 'sharpness',
     name: 'Sharpness',
@@ -1448,16 +1453,6 @@ export const META_UPGRADES = [
     effect: { stat: 'fireRate', curve: 'percent' },
   },
   {
-    id: 'toughHide',
-    name: 'Tough Hide',
-    desc: 'Permanent +damage reduction (slow climb, all runs)',
-    icon: '🛡️',
-    maxLevel: 10,
-    costBase: 45,
-    costGrowth: 1.4,
-    effect: { stat: 'damageReduction', curve: 'percent' },
-  },
-  {
     id: 'aegis',
     name: 'Aegis',
     desc: 'Start each run with +1 guard charge',
@@ -1465,6 +1460,18 @@ export const META_UPGRADES = [
     maxLevel: 2,
     cost: [80, 160],
     effect: { stat: 'guard', perLevel: 1 },
+  },
+  {
+    // CP4 (ADR-0037): premium PERMANENT luck. +0.5 luck "stacks" per level (a LUCK_UP pick = 1), fed
+    // into the D2 curve (core/luck.js). Deliberately EXPENSIVE (≈1.5× ramp) and capped below the
+    // asymptote — at max (level 10 → +5) it's ~0.41 bonus alone, richer offers but never a guarantee.
+    id: 'fortune',
+    name: 'Fortune',
+    desc: 'Permanent +luck — richer offers, all runs',
+    icon: '🍀',
+    maxLevel: 10,
+    cost: [60, 90, 135, 203, 304, 456, 683, 1025, 1538, 2306],
+    effect: { stat: 'luck', perLevel: 0.5 },
   },
 ];
 

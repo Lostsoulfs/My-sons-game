@@ -69,17 +69,18 @@ export function purchase(save, id) {
 }
 
 /**
- * Returns { damage, fireRate, speed, damageReduction, hearts, guard } from purchased meta
- * upgrades. ALL-ZERO unless save.gameBeaten (belt-and-suspenders gate — the first playthrough
- * is the pure base game with no permanent buffs).
+ * Returns { damage, fireRate, speed, guard, luck } from purchased meta upgrades. ALL-ZERO unless
+ * save.gameBeaten (belt-and-suspenders gate — the first playthrough is the pure base game with no
+ * permanent buffs).
  *
- * `percent` nodes (ADR-0031: sharpness/swiftness/rapid/toughHide) return a standalone %
- * bonus (metaBreakpointBonus) meant to be ADDED on top of the in-run stat curve, not folded
- * into its stack count — see entities/player.js _recomputeUpgrades. `perLevel` (flat) nodes
- * (vitality/aegis) are unchanged: a small integer stack per level.
+ * `percent` nodes (ADR-0031: sharpness/swiftness/rapid) return a standalone % bonus
+ * (metaBreakpointBonus) meant to be ADDED on top of the in-run stat curve, not folded into its stack
+ * count — see entities/player.js _recomputeUpgrades. `perLevel` (flat) nodes (aegis/fortune) are a
+ * small stack per level. CP4 (ADR-0037): the `hearts` (Vitality) + `damageReduction` (Tough Hide)
+ * keys were cut; `luck` (Fortune) added — a permanent luck bonus fed into the offer roll.
  */
 export function baselineStacks(save) {
-  const zero = { damage: 0, fireRate: 0, speed: 0, damageReduction: 0, hearts: 0, guard: 0 };
+  const zero = { damage: 0, fireRate: 0, speed: 0, guard: 0, luck: 0 };
   if (!save.gameBeaten) return zero;
   const result = { ...zero };
   for (const node of META_UPGRADES) {

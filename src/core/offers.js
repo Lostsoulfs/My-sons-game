@@ -10,8 +10,9 @@
 // =====================================================================
 
 import { OFFERS } from '../config.js';
-import { TIERS, itemsByTier, blurbFor } from './items.js';
+import { TIERS, itemsByTier, blurbFor, itemById } from './items.js';
 import { weightedChoice } from './weighted.js';
+import { goodDropMultiplier } from './luck.js';
 
 function tierIndex(t) {
   return TIERS.indexOf(t);
@@ -37,13 +38,13 @@ export function pityFloorTier(commonStreak) {
   return floor;
 }
 
-/** roll a tier by weight, never below `minTier`, skipping empty tiers. `luck` (ADR-0030, already
- *  clamped by the caller) multiplies every rare+ tier's weight — biases up, never guarantees. */
-function rollTier(rng, minTier, luck = 0) {
+/** roll a tier by weight, never below `minTier`, skipping empty tiers. `goodMul` (CP4 core/luck.js,
+ *  precomputed from luck⊖curse by the caller) multiplies every rare+ tier's weight — biases up on
+ *  luck, down on curse, never guarantees (asymptote) and never zeroes (floor). Commons are ×1. */
+function rollTier(rng, minTier, goodMul = 1) {
   const minIdx = minTier ? Math.max(0, tierIndex(minTier)) : 0;
-  const luckMul = 1 + luck * OFFERS.luck.tierWeightBonus;
   const entries = TIERS.filter((t, i) => i >= minIdx && (itemsByTier[t]?.length ?? 0) > 0).map(
-    (t) => ({ value: t, weight: (OFFERS.tierWeights[t] ?? 0) * (tierIndex(t) >= 1 ? luckMul : 1) }),
+    (t) => ({ value: t, weight: (OFFERS.tierWeights[t] ?? 0) * (tierIndex(t) >= 1 ? goodMul : 1) }),
   );
   return weightedChoice(rng, entries);
 }
@@ -111,7 +112,7 @@ function overflowCategory(catCount) {
 /** draw one card's item: variety-aware, with the pity floor applied to the first card. */
 function drawCard(
   rng,
-  { index, floor, chosen, catCount, recent, owned, blocked, weaponDecay, seenWeapons, luck },
+  { index, floor, chosen, catCount, recent, owned, blocked, weaponDecay, seenWeapons, goodMul },
 ) {
   const avoidCat = overflowCategory(catCount);
   const gate = { blocked, weaponDecay, seenWeapons };
@@ -119,7 +120,7 @@ function drawCard(
   if (avoidCat) {
     item = pickItem(rng, { chosen, recent, owned, avoidCat, ...gate }); // span tiers to reach another category
   } else {
-    const tier = rollTier(rng, index === 0 ? floor : null, luck) ?? rollTier(rng, null, luck);
+    const tier = rollTier(rng, index === 0 ? floor : null, goodMul) ?? rollTier(rng, null, goodMul);
     item = tier ? pickItem(rng, { tier, chosen, recent, owned, ...gate }) : null;
   }
   return item ?? pickItem(rng, { chosen, recent, owned, ...gate }); // last-ditch: any not-chosen item
@@ -139,9 +140,10 @@ function drawCard(
  *   • drop a stat/mod card once the HELD gun has maxed it (statCap / weaponMods),
  *   • withhold explosive tips on already-explosive (incl. modded) or fast-firing guns,
  *   • withhold ALL bullet-mods on the Orbital Blade (it fires no bullets — dead picks),
- *   • drop LUCK_UP once luck is at its cap (dead card otherwise),
+ *   • drop LUCK_UP once in-run luck is at its cap, and GLOBAL_DAMAGE once its flat stacks are maxed,
  *   • down-weight weapon offers once you already carry more than one gun.
- * LUCK is clamped here ONCE (0..maxStacks) so nothing downstream can exceed the cap or go negative.
+ * In-run LUCK is clamped here ONCE (0..maxStacks); the rare+ weight multiplier `goodMul` folds in
+ * that luck + permanent Fortune (permLuck) − curse via the CP4 D2 curve (core/luck.js).
  */
 function buildGates(ctx) {
   const blocked = new Set();
@@ -158,9 +160,19 @@ function buildGates(ctx) {
   }
   const luck = Math.max(0, Math.min(ctx.luck ?? 0, OFFERS.luck.maxStacks));
   if (luck >= OFFERS.luck.maxStacks) blocked.add('LUCK_UP');
+  // CP4: the flat global-damage reward is a dead card once maxed (cap lives on the item effect).
+  const gd = itemById('GLOBAL_DAMAGE');
+  if (gd && (ctx.globalDamageFlat ?? 0) >= (gd.effect.maxStacks ?? Infinity)) {
+    blocked.add('GLOBAL_DAMAGE');
+  }
   return {
     blocked,
-    luck,
+    // CP4: rare+ tier-weight multiplier from luck⊖curse (in-run luck + permanent Fortune − curse).
+    goodMul: goodDropMultiplier({
+      inRunLuck: luck,
+      permLuck: ctx.permLuck ?? 0,
+      curse: ctx.curse ?? 0,
+    }),
     weaponDecay: (ctx.ownedCount ?? 0) > 1 ? (OFFERS.extraWeaponDecay ?? 1) : 1,
     seenWeapons: ctx.seenWeapons ?? null, // id -> times offered (see-it-once decay)
   };
@@ -173,7 +185,7 @@ export function generateOffer(rng, ctx = {}) {
   let floor = pityFloorTier(ctx.commonStreak ?? 0);
   // boss clears guarantee at least a 'rare' floor card (ADR-0030 boss-tier reward)
   if (ctx.bossTier && (!floor || tierIndex(floor) < tierIndex('rare'))) floor = 'rare';
-  const { blocked, luck, weaponDecay, seenWeapons } = buildGates(ctx);
+  const { blocked, goodMul, weaponDecay, seenWeapons } = buildGates(ctx);
 
   const chosen = new Set();
   const catCount = {};
@@ -189,7 +201,7 @@ export function generateOffer(rng, ctx = {}) {
       blocked,
       weaponDecay,
       seenWeapons,
-      luck,
+      goodMul,
     });
     if (!item) break; // registry exhausted (won't happen at the current size)
     chosen.add(item.id);
