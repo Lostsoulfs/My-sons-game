@@ -13,7 +13,7 @@ headless environments run a cheap pipeline while the owner's discrete GPU stays 
 **It didn't actually protect the environment that lags.** Live probe of the headless
 Iris-Xe preview (the exact machine that chokes on MSAA 8 + 2048 shadows + N8AO):
 
-```
+```text
 gfxTier:   "high"          navigator.webdriver: false
 renderer:  "ANGLE (Intel … Iris(R) Xe Graphics …)"   → isSoftwareRenderer = false
 shadowMapEnabled: true     pixelRatio: 1

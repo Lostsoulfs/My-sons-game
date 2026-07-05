@@ -160,7 +160,7 @@ function probeRendererString() {
       if (sample(frameMs, document.visibilityState === 'visible')) {
         postfx?.setEnabled(false); // drop bloom + N8AO (the heaviest passes) → raw render
         setShadowsEnabled(false); // drop the shadow map
-        setPixelRatioCap(1); // stop super-sampling hi-DPI panels
+        setPixelRatioCap(GRAPHICS.lowPreset.pixelRatioCap); // drop to the low-tier ratio (config, not a magic 1)
         window.__gfxTier = 'auto-low';
         console.info('[gfx] sustained low FPS → auto-dropped graphics (restore: ?gfx=high or ✨)');
       }
