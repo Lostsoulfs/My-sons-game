@@ -3,7 +3,7 @@
 // (?debug=1 or the backtick key), so it never loads during normal play.
 //
 // Everything drives the live game via window.__game, reusing existing methods
-// (loadRoom, setWeapon, spawnPickup, startRun, etc.).
+// (_startFloor, loadNode, spawnPickup, startRun, etc. — ADR-0032 replaced loadRoom).
 // =====================================================================
 
 import GUI from 'lil-gui';
