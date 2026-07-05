@@ -85,6 +85,15 @@ describe('normalizeSave', () => {
     expect(normalizeSave({ gameBeaten: 'yes' }).gameBeaten).toBe(true);
   });
 
+  it('defaults + sanitizes seenBosses (ADR-0033 skip-after-seen)', () => {
+    expect(normalizeSave({}).seenBosses).toEqual([]); // missing → empty
+    expect(normalizeSave({ seenBosses: 'nope' }).seenBosses).toEqual([]); // non-array → empty
+    // keeps only non-empty strings, de-duped
+    expect(
+      normalizeSave({ seenBosses: ['spider', 'spider', '', 3, null, 'enforcer'] }).seenBosses,
+    ).toEqual(['spider', 'enforcer']);
+  });
+
   it('drops unknown upgrade ids', () => {
     const out = normalizeSave({ upgrades: { NOT_REAL: 5, vitality: 1 } });
     expect(out.upgrades.NOT_REAL).toBeUndefined();

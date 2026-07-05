@@ -115,6 +115,22 @@ export const hud = {
     $('banner')?.classList.remove('show');
   },
 
+  // the boss ENTRANCE name card (ADR-0033): big name + epithet, CSS fade/scale-in. Distinct
+  // from the transient #banner and the persistent HP-bar name. textContent = XSS-safe convention.
+  nameCard(name, subtitle = '') {
+    const el = $('namecard');
+    if (!el) return;
+    const n = $('namecard-name');
+    const s = $('namecard-sub');
+    if (n) n.textContent = name;
+    if (s) s.textContent = subtitle;
+    el.classList.add('show');
+  },
+
+  hideNameCard() {
+    $('namecard')?.classList.remove('show');
+  },
+
   toast(text, good = true) {
     const el = $('toast');
     if (!el) return;

@@ -14,6 +14,12 @@ shot-*.png
 # local agent observability log (hook events)
 .claude/logs/
 
+# per-machine Claude/preview local artifacts — never project policy, never commit
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+.claude/launch.json
+.claude/dev-launcher.cmd
+
 # editor-injected AI instruction files (e.g. the Codacy VS Code extension auto-creates
 # .github/instructions/codacy.instructions.md) — NOT project policy; never commit. The
 # real fix is disabling the extension's rule-generation; this is the repo-side safety net.

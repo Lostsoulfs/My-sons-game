@@ -36,13 +36,14 @@ import { normalize, circleVsCircle } from '../core/math2d.js';
 import * as audio from '../systems/audio.js';
 
 export class Boss {
-  constructor(scene, x, z, bossType = 'spider', diff = 1, palette = null) {
+  constructor(scene, x, z, bossType = 'spider', diff = 1, palette = null, opts = {}) {
     this.scene = scene;
     this.isBoss = true;
     this.bossType = bossType;
     this.behavior = BEHAVIORS[bossType] || BEHAVIORS.spider;
     this.cfg = BOSS[bossType] || BOSS.spider;
     this.name = this.behavior.name;
+    this.title = this.behavior.title || ''; // ADR-0033 name-card epithet (may be empty)
     // dev-only kid-fairness audit (flip DEBUG_FAIRNESS.warnOnInit on while tuning difficulty)
     if (DEBUG_FAIRNESS.warnOnInit && this.cfg.telegraph != null) {
       const ms = this.cfg.telegraph * 1000;
@@ -83,6 +84,13 @@ export class Boss {
     castShadows(this.mesh); // the boss casts a shadow (covers procedural + GLB meshes)
     this.mesh.position.set(x, 0, z);
     scene.add(this.mesh);
+    // ADR-0033: an entrance-cinematic boss defers its roar to the reveal beat (game.js
+    // fires boss.roar() then), so it doesn't fire at spawn behind the name card.
+    if (!opts.silentRoar) this.roar();
+  }
+
+  /** the boss's roar/growl sting — deferred to the entrance reveal for intro bosses (ADR-0033) */
+  roar() {
     audio.play(this.behavior.roar || 'bossRoar');
   }
 

@@ -22,6 +22,8 @@ import {
   PICKUPS,
   MAP,
   ROOMS,
+  BOSS_INTRO,
+  HUMAN_APPROACH,
 } from './config.js';
 import { State } from './states.js';
 import { makeRng } from './core/rng.js';
@@ -211,7 +213,9 @@ export class Game {
     this.bosses = [];
     this.duo = null; // re-created by the spawner if this is a multi-boss room
     this._bossHandled = false;
+    this._intro = null; // ADR-0033: drop any in-flight boss entrance (never leaks across rooms)
     hud.hideBossBars();
+    hud.hideNameCard();
 
     // clear out the previous room's actors (dispose anim mixers so they don't leak)
     for (const e of this.enemies) {
@@ -304,6 +308,7 @@ export class Game {
       def: meta.def,
       diff: meta.diff,
       entry: { x: at.x, z: at.z }, // keep spawns clear of the door we walked in through
+      entrySide, // ADR-0033: boss spawns on the wall OPPOSITE this (null = floor start = south)
     };
     populateRoom(this, desc, layoutRng);
     this.bosses = this.enemies.filter((e) => e.isBoss);
@@ -312,22 +317,16 @@ export class Game {
     hud.hideBanner();
     prompts.hide();
     this.refreshHud();
+    // stage track by default; a combat-boss ENTRANCE swaps to the boss theme on its reveal beat,
+    // and the human keeps the stage track until his fight actually starts (ADR-0033).
+    audio.setStageMusic(this.floorIndex);
 
-    // music: a boss theme in a (non-decision) boss room, else the stage track. The
-    // human decision-boss keeps the stage track until the fight actually starts.
-    if (desc.isBossRoom && desc.def.boss !== 'human' && this.bosses.length) {
-      audio.setBossMusic(desc.def.boss);
-    } else {
-      audio.setStageMusic(this.floorIndex);
-    }
-    if (desc.isBossRoom && desc.def.boss === 'human') {
-      // decision-boss: pause for the A/B/C/D approach choice BEFORE any fight
-      this.state = State.HUMAN_CHOICE;
-      showHumanChoice((choice) => this._onHumanChoice(choice));
+    if (desc.isBossRoom && desc.def.boss === 'human' && this.bosses.length) {
+      // the human decision-boss: walk up to him (mini-scene) before the A/B/C/D choice
+      this._startHumanApproach();
     } else if (desc.isBossRoom && this.bosses.length) {
-      const names = this.bosses.map((b) => b.name).join(' & ');
-      hud.banner(`${names.toUpperCase()} — ${this.bosses.length > 1 ? 'KILL THEM' : 'KILL IT'}`);
-      setTimeout(() => hud.hideBanner(), 1600);
+      // a combat boss: play the entrance cinematic (camera push-in + name card), THEN the fight
+      this._startBossIntro(desc);
     }
   }
 
@@ -421,6 +420,16 @@ export class Game {
         const wipe = !this.players.some((p) => p.alive);
         if (this.coop ? wipe : !this.player.alive) this._onDefeat();
       }
+    } else if (this.state === State.BOSS_INTRO) {
+      // ADR-0033 entrance cinematic: fight is frozen (entities untouched); advance the
+      // camera push-in + name-card timeline, then hand off to PLAYING.
+      this._updateBossIntro(dt);
+    } else if (this.state === State.HUMAN_APPROACH) {
+      // ADR-0033 walk-up: the PLAYERS + their bullets tick (you approach on foot, can even
+      // fire) but the human boss does NOT — he stands inert + invuln until the choice resolves.
+      for (const pl of this.players) if (pl.alive) pl.update(dt, this);
+      this.bullets.update(dt, this);
+      this._updateHumanApproach(dt);
     } else if (this.state === State.HUMAN_CHOICE) {
       // fight is paused while the overlay is up; just drive the gamepad cursor
       // (mouse + keyboard are handled inside ui/humanchoice.js)
@@ -657,8 +666,163 @@ export class Game {
     hud.banner('ROOM CLEAR — EXPLORE!');
   }
 
+  // ---- ADR-0033 boss ARRIVALS: entrance cinematic + human approach mini-scene ----
+
+  /** Begin a combat boss's entrance: camera push-in + name card, THEN the fight. */
+  _startBossIntro(desc) {
+    const boss = this.bosses[0];
+    // headless / no-DOM (smoke drives, tests): no cinematic — straight into the fight
+    if (typeof document === 'undefined' || !document.getElementById('namecard')) {
+      this._endBossIntro(desc);
+      return;
+    }
+    this._intro = {
+      t: 0,
+      camProg: 0,
+      revealed: false,
+      ending: false, // set true when a SKIP starts the eased pull-back (see _updateBossIntro)
+      focus: { x: boss.x, z: boss.z },
+      names: this.bosses.map((b) => b.name).join(' & '),
+      subtitle: boss.title || '',
+      desc,
+      seen: saves.hasSeenBoss(desc.def.boss), // seen this boss before → skippable
+    };
+    this.state = State.BOSS_INTRO;
+    if (this._intro.seen) prompts.show('Press [E] / Ⓐ to skip');
+    else prompts.hide();
+  }
+
+  /** Advance the entrance timeline (camera + name card + reveal beat), then hand off to PLAYING. */
+  _updateBossIntro(dt) {
+    const intro = this._intro;
+    if (!intro) {
+      this.state = State.PLAYING;
+      return;
+    }
+    const ease = (x) => {
+      const t = Math.max(0, Math.min(1, x));
+      return t * t * (3 - 2 * t); // smoothstep
+    };
+    // SKIP pull-back (seen bosses): ease camProg from wherever the shot IS down to 0, THEN start
+    // the fight — matches the natural fade tail so the camera never hard-cuts to the room framing.
+    if (intro.ending) {
+      intro.endU = Math.min(1, intro.endU + dt / (BOSS_INTRO.skipFadeMs / 1000));
+      intro.camProg = intro.endFrom * (1 - ease(intro.endU));
+      if (intro.endU >= 1) this._endBossIntro(intro.desc);
+      return;
+    }
+    // once you've SEEN this boss, any confirm fast-forwards — begin the eased pull-back (no snap)
+    if (intro.seen && this.input.consumeHelp('both')) {
+      hud.hideNameCard();
+      intro.ending = true;
+      intro.endFrom = intro.camProg;
+      intro.endU = 0;
+      return;
+    }
+    intro.t += dt;
+    const push = BOSS_INTRO.pushInMs / 1000;
+    const hold = BOSS_INTRO.holdMs / 1000;
+    const fade = BOSS_INTRO.fadeMs / 1000;
+    // reveal beat (fires once): name card + roar + boss theme + flash + shake + burst
+    if (!intro.revealed && intro.t >= push * BOSS_INTRO.revealAt) {
+      intro.revealed = true;
+      hud.nameCard(intro.names, intro.subtitle);
+      this.bosses[0]?.roar();
+      audio.setBossMusic(intro.desc.def.boss);
+      this.juice.addTrauma(BOSS_INTRO.trauma);
+      const f = FEEL.screenFlash.bossReveal;
+      hud.flashScreen(f.peak, f.color, f.ms);
+      this.particles.burst(intro.focus.x, intro.focus.z, BOSS_INTRO.particles, 0xffd18a);
+    }
+    // camera: 0→1 push-in, hold at 1, then 1→0 ease back to the room framing
+    if (intro.t < push) intro.camProg = ease(intro.t / push);
+    else if (intro.t < push + hold) intro.camProg = 1;
+    else if (intro.t < push + hold + fade) {
+      intro.camProg = 1 - ease((intro.t - push - hold) / fade);
+      hud.hideNameCard(); // the card leaves as the camera pulls back
+    } else {
+      this._endBossIntro(intro.desc);
+    }
+  }
+
+  /** Finish the entrance: mark the boss seen, re-arm spawn grace, drop into PLAYING. */
+  _endBossIntro(desc) {
+    const intro = this._intro;
+    const d = desc || intro?.desc;
+    if (intro) {
+      saves.recordBossSeen(intro.desc.def.boss); // first view counts → later encounters can skip
+      if (!intro.revealed && d) audio.setBossMusic(d.def.boss); // skipped/headless before the reveal
+    } else if (d) {
+      audio.setBossMusic(d.def.boss);
+    }
+    this._intro = null;
+    hud.hideNameCard();
+    prompts.hide();
+    // re-arm entry grace at COMBAT start — it froze during the non-ticking intro (ADR-0032 trap)
+    for (const pl of this.players) if (pl.alive) pl.spawnSafe = ROOMS.entryGrace;
+    this.state = State.PLAYING;
+    if (this.bosses.length) {
+      const names = this.bosses.map((b) => b.name).join(' & ');
+      hud.banner(`${names.toUpperCase()} — ${this.bosses.length > 1 ? 'KILL THEM' : 'KILL IT'}`);
+      setTimeout(() => hud.hideBanner(), 1400);
+    }
+  }
+
+  /** Begin the human decision-boss mini-scene: walk up to him (civilians around) before the choice. */
+  _startHumanApproach() {
+    const boss = this.bosses[0];
+    if (boss) boss.invuln = true; // inert + unhittable until the fight actually starts
+    // headless / no-DOM: skip the walk-up straight to the choice (keeps drives + tests moving)
+    if (typeof document === 'undefined' || !document.getElementById('namecard')) {
+      this._openHumanChoice();
+      return;
+    }
+    this._approach = { t: 0, boss, opened: false };
+    this.state = State.HUMAN_APPROACH;
+    prompts.show('A survivor blocks the gate — approach him.   [E] / Ⓐ');
+  }
+
+  /** Walk-up loop: open the A/B/C/D choice once you reach him (or press interact). */
+  _updateHumanApproach(dt) {
+    const ap = this._approach;
+    if (!ap || ap.opened) return;
+    ap.t += dt;
+    const boss = ap.boss;
+    const near =
+      boss &&
+      this.players.some(
+        (p) => p.alive && Math.hypot(p.x - boss.x, p.z - boss.z) <= HUMAN_APPROACH.approachRadius,
+      );
+    const pressed = this.input.consumeHelp('both');
+    if (ap.t >= HUMAN_APPROACH.buildupMinMs / 1000 && (near || pressed)) {
+      ap.opened = true;
+      this._openHumanChoice();
+    }
+  }
+
+  /** Show the A/B/C/D overlay (shared by the walk-up trigger and the headless fast-path). */
+  _openHumanChoice() {
+    this._approach = null;
+    prompts.hide();
+    this.state = State.HUMAN_CHOICE;
+    showHumanChoice((choice) => this._onHumanChoice(choice));
+  }
+
+  /** Remove the ambient (passive) civilians from the human mini-scene — they scatter on the choice. */
+  _clearCivilians() {
+    this.npcs = this.npcs.filter((n) => {
+      if (!n.passive) return true;
+      this.scene.remove(n.mesh);
+      this.scene.remove(n.marker);
+      return false;
+    });
+  }
+
   /** the player picked an approach at the human decision-boss (A/B/C/D) */
   _onHumanChoice(choice) {
+    this._clearCivilians(); // the survivors scatter the moment you commit to a read
+    const boss = this.bosses[0];
+    if (boss) boss.invuln = false; // he's fair game now (right read removes him; wrong read fights)
     const outcome = resolveHuman(this.rng, choice); // seeded (ADR-0013)
     hud.toast(outcome.message, outcome.right);
     audio.play(outcome.right ? 'good' : 'bad');
@@ -762,12 +926,25 @@ export class Game {
     // renders identical camera motion (ADR-0013) — composed with the B3 spring-follow pan.
     const sh = this.juice.shakeOffsetXZ(performance.now() / 1000);
     const pan = this.camPan;
-    this.camera.position.set(
-      this.baseCam.x + pan.x + sh.x,
-      this.baseCam.y + sh.y,
-      this.baseCam.z + pan.z + sh.z,
-    );
-    this.camera.lookAt(pan.x, CAMERA.lookAtY, pan.z);
+    const intro = this._intro;
+    if (intro && intro.camProg > 0) {
+      // ADR-0033 entrance push-in: ease the look-target from the room framing toward the boss
+      // and pull the base camera distance/height IN. camProg (0→1→0) is advanced in _updateBossIntro.
+      const p = intro.camProg;
+      const lx = pan.x + (intro.focus.x - pan.x) * p;
+      const lz = pan.z + (intro.focus.z - pan.z) * p;
+      const hy = this.baseCam.y * (1 - p * BOSS_INTRO.camZoom * (1 - BOSS_INTRO.camLift));
+      const bk = this.baseCam.z * (1 - p * BOSS_INTRO.camZoom);
+      this.camera.position.set(lx + sh.x, hy + sh.y, lz + bk + sh.z);
+      this.camera.lookAt(lx, CAMERA.lookAtY, lz);
+    } else {
+      this.camera.position.set(
+        this.baseCam.x + pan.x + sh.x,
+        this.baseCam.y + sh.y,
+        this.baseCam.z + pan.z + sh.z,
+      );
+      this.camera.lookAt(pan.x, CAMERA.lookAtY, pan.z);
+    }
     // post-FX pipeline if present (it self-falls-back to raw render); else raw render.
     if (this.postfx) this.postfx.render();
     else this.renderer.render(this.scene, this.camera);
