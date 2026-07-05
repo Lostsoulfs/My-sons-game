@@ -11,6 +11,7 @@ const FULL = {
   hearts: 4,
   maxHearts: 6,
   guardCharges: 2,
+  bladeAura: 2,
   damageMul: 1.35,
   fireRateMul: 0.82,
   speedMul: 1.1,
@@ -38,16 +39,17 @@ describe('statRows — pure pause-menu stats formatter', () => {
   it('renders derived, in-run, per-weapon, and permanent values as raw tokens', () => {
     const s = statRows(FULL);
     expect(findRow(s, 'Vitals', 'Hearts')).toBe('4 / 6');
-    expect(findRow(s, 'Vitals', 'Guard')).toBe('2');
+    expect(findRow(s, 'Vitals', 'Armor')).toBe('2');
     expect(findRow(s, 'Offense', 'Damage')).toBe('×1.35');
     expect(findRow(s, 'Offense', 'Fire rate')).toBe('×0.82');
     expect(findRow(s, 'Offense', 'Flat damage')).toBe('+2');
+    expect(findRow(s, 'Offense', 'Blade aura')).toBe('2');
     expect(findRow(s, 'Mobility & fortune', 'Move speed')).toBe('×1.10');
     expect(findRow(s, 'Mobility & fortune', 'Luck')).toBe('3');
     expect(findRow(s, 'Weapon — Pistol', 'Damage stacks')).toBe('2');
     expect(findRow(s, 'Weapon — Pistol', 'Bullet speed')).toBe('1');
     expect(findRow(s, 'Permanent (Resonance)', 'Damage')).toBe('+10%');
-    expect(findRow(s, 'Permanent (Resonance)', 'Guard')).toBe('+1');
+    expect(findRow(s, 'Permanent (Resonance)', 'Armor')).toBe('+1');
     expect(findRow(s, 'Permanent (Resonance)', 'Luck')).toBe('1.5');
   });
 

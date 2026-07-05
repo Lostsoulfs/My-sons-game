@@ -993,8 +993,8 @@ export const WEAPONS = {
   // --- Expansion 6 guns ---
   // New bullet flags (handled in bullets.js): pierce (pass through N enemies),
   // homing + turnRate (curve toward nearest enemy), bounces (ricochet off walls
-  // N times), plus per-bullet life/scale/color overrides. charge + orbital are
-  // handled player-side (player.js) because they don't fire on a fixed cooldown.
+  // N times), plus per-bullet life/scale/color overrides. charge is handled
+  // player-side (player.js) because it doesn't fire on a fixed cooldown.
   homing: {
     name: 'Homing Missiles',
     cooldown: 0.55,
@@ -1049,16 +1049,8 @@ export const WEAPONS = {
       color: 0xffd23a,
     },
   },
-  orbital: {
-    name: 'Orbital Blade',
-    orbital: true, // player-side: blades circle you and hit on contact (no aiming)
-    count: 2, // how many blades orbit
-    radius: 2.6, // orbit radius
-    spin: 3, // rad/sec
-    damage: 1,
-    hitCooldown: 0.4, // per-enemy seconds between hits from a blade
-    color: 0x66ffd0,
-  },
+  // (CP-B: the Orbital Blade was removed as a *weapon* — its circling blades are now an
+  // always-on passive "blade aura" upgrade. See BLADE_AURA below + Player._updateAura.)
 
   // --- 1950s weapons matrix (rarity ⟂ flavor) ---
   // Rarity (drop odds + power) and flavor (real ballistic vs sci-fi energy) are INDEPENDENT axes:
@@ -1175,8 +1167,8 @@ export const WEAPONS = {
 // Ballistic guns fire `clipSize` rounds then reload (`reloadTime` s of downtime). Energy guns build
 // `heatPerShot` and bleed `coolRatePerSec`; at full heat they OVERHEAT until back under `resetHeat`
 // (feathering never overheats — only sustained hosing does). The minigun is ballistic-flavored but
-// uses HEAT (spin-up + overheat, per Scott — no ammo). Orbital is a passive contact weapon → no
-// limiter (omitted). Pure state machines: core/reload.js + core/heat.js. These are CP2 feel-starting
+// uses HEAT (spin-up + overheat, per Scott — no ammo). (CP-B: the old limiter-less Orbital Blade is
+// gone — every weapon now pays a downside.) Pure state machines: core/reload.js + core/heat.js. CP2
 // values; CP3's power model tunes them so each gun's SUSTAINED dps lands in its rarity band.
 export const WEAPON_LIMITS = {
   // ballistic → magazine + reload
@@ -1220,7 +1212,6 @@ export const POWER_SCORE = {
   CROWD_N: 3, // crowd-scenario size = the target-count cap for pierce/AoE credit
   PIERCE_HIT: 0.7, // extra-target credit per pierce (× min(pierce, 8))
   AOE_AREA_DIV: 22, // explosive area (π r²) ÷ this = extra targets
-  ORBITAL_TARGETS: 2.0, // effective targets for the orbital (zero-aim contact)
   HOMING_TARGETS: 1.2, // homing auto-connects → a little crowd credit
   // Alpha-strike credit: burst room-clear the sustained-DPS model can't see (Davy Crockett nuke).
   ALPHA_REF: 8, // per-shot damage × targets below which a weapon gets NO alpha credit (normal guns)
@@ -1261,7 +1252,6 @@ export const PICKUPS = {
       HOMING: 'common',
       RAILGUN: 'common',
       CHARGE: 'epic',
-      ORBITAL: 'rare',
       // 1950s matrix (ground-droppable tiers only — ULTRA minigun/davycrockett are offer-only)
       UZI: 'common',
       CARBINE: 'common',
@@ -1367,9 +1357,26 @@ export const OFFERS = {
 };
 
 // ---- B9: defensive upgrades (offered, not dropped) ----
+// CP-B: the passive "blade aura" — spectral blades orbit the player and shear enemies on contact
+// (no aiming, always on once unlocked). Granted + stacked by the BLADE_AURA offer upgrade; each level
+// adds a blade. Power stays modest (a defensive contact-AoE that rides ON TOP of your real weapon).
+// The global flat +damage and damageMul still apply to blade hits, so it scales with your build.
+export const BLADE_AURA = {
+  baseCount: 2, // blades at level 1
+  countPerLevel: 1, // +1 blade per level beyond 1 → level L has baseCount + (L-1)*countPerLevel
+  maxLevel: 3, // capped: level 3 = 4 blades (matches Scott's "3 max" instinct)
+  radius: 2.6, // orbit radius (world units)
+  spin: 3, // rad/sec
+  damage: 1, // per-blade contact damage (before global flat + damageMul)
+  hitCooldown: 0.4, // per-enemy seconds between hits from a blade
+  color: 0x66ffd0,
+};
+
 export const GUARD = {
-  rareCharges: 1, // "Guard" (rare) = block the next hit
-  ultraCharges: 3, // "Greater Guard" (ultra, very rare) = block the next 3 hits
+  rareCharges: 1, // "Atomic Plating" (rare) = block the next hit
+  ultraCharges: 3, // "Powered Exo-Armor" (ultra, very rare) = block the next 3 hits
+  maxCharges: 3, // CP-B: HARD cap ("3 max" armor) — charges never exceed this, so the 🛡️ plate count
+  // over the hearts is always the TRUTH (no hidden armor). Single source for the mechanic + HUD cap.
   // feedback when a charge BLOCKS a hit — a distinct, lighter cue (no blood / music duck / heart loss)
   block: {
     sparkCount: 8,
@@ -1478,7 +1485,7 @@ export const META_UPGRADES = [
   {
     id: 'aegis',
     name: 'Aegis',
-    desc: 'Start each run with +1 guard charge',
+    desc: 'Start each run with +1 armor plate',
     icon: '✨',
     maxLevel: 2,
     cost: [80, 160],

@@ -6,7 +6,7 @@
 //
 // dutyCycle (core/duty.js) folds in the reload/overheat downside — the ONLY subtracted term, so a
 // high-burst gun (Browning) pays its raw DPS back in reload time and lands in its band. scenario
-// blends single-target and a small crowd so pierce/AoE/orbital archetypes score on what they hit.
+// blends single-target and a small crowd so pierce/AoE archetypes score on what they hit.
 // All knobs in config.POWER_SCORE; tier bands in config.TIER_BANDS.
 // =====================================================================
 
@@ -18,7 +18,6 @@ import { weaponDuty } from './duty.js';
 export function effectiveCooldown(w) {
   if (w.spinUp) return w.spinUp.endCd;
   if (w.charge) return (w.charge.maxTime ?? 0.8) + (w.cooldown ?? 0.12);
-  if (w.orbital) return w.hitCooldown ?? 0.4;
   return w.cooldown ?? 0.3;
 }
 
@@ -26,7 +25,6 @@ export function effectiveCooldown(w) {
 export function burstDPS(w) {
   // full charge takes maxTime to build + the cooldown between shots — not fired every cooldown
   if (w.charge) return w.charge.maxDamage / ((w.charge.maxTime ?? 0.8) + (w.cooldown ?? 0.12));
-  if (w.orbital) return ((w.count ?? 1) * (w.damage ?? 1)) / (w.hitCooldown ?? 0.4);
   // effectiveCooldown gives a spun-up gun (minigun) its wound-up cadence, not its slow start
   return ((w.damage ?? 1) * (w.pellets ?? 1)) / effectiveCooldown(w);
 }
@@ -66,11 +64,10 @@ export function alphaFactor(w) {
   return 1 + P.ALPHA_GAIN * Math.max(0, Math.min(punch, P.ALPHA_CAP));
 }
 
-/** effective targets hit (pierce / AoE / orbital / homing), capped at CROWD_N. */
+/** effective targets hit (pierce / AoE / homing), capped at CROWD_N. */
 export function targetCount(w) {
   const P = POWER_SCORE;
   let t = 1;
-  if (w.orbital) t = Math.max(t, P.ORBITAL_TARGETS);
   if (w.pierce) t = Math.max(t, 1 + Math.min(w.pierce, 8) * P.PIERCE_HIT);
   if (w.charge?.pierce) t = Math.max(t, 1 + Math.min(w.charge.pierce, 8) * P.PIERCE_HIT);
   if (w.explosive && w.explodeRadius) {
@@ -82,7 +79,7 @@ export function targetCount(w) {
 
 /** the single power scalar. `limit` = config.WEAPON_LIMITS[key] (or undefined for an exempt weapon). */
 export function powerScore(w, limit) {
-  const duty = w.orbital ? 1 : weaponDuty(effectiveCooldown(w), limit);
+  const duty = weaponDuty(effectiveCooldown(w), limit);
   const scenario = 0.5 * 1 + 0.5 * targetCount(w); // blend single-target + small crowd
   return (
     burstDPS(w) *

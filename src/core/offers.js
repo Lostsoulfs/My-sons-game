@@ -9,7 +9,7 @@
 // disturbs the B8 ground-drop rarity engine (core/drops.js / config.PICKUPS.rarity).
 // =====================================================================
 
-import { OFFERS } from '../config.js';
+import { OFFERS, GUARD } from '../config.js';
 import { TIERS, itemsByTier, blurbFor, itemById } from './items.js';
 import { weightedChoice } from './weighted.js';
 import { goodDropMultiplier } from './luck.js';
@@ -139,7 +139,7 @@ function drawCard(
  * ADR-0030 weapon-aware gating (PURE) — all opt-in via ctx; absent fields ⇒ no gating (back-compat):
  *   • drop a stat/mod card once the HELD gun has maxed it (statCap / weaponMods),
  *   • withhold explosive tips on already-explosive (incl. modded) or fast-firing guns,
- *   • withhold ALL bullet-mods on the Orbital Blade (it fires no bullets — dead picks),
+ *   • stop offering the passive Blade Aura once it's at max level (CP-B),
  *   • drop LUCK_UP once in-run luck is at its cap, and GLOBAL_DAMAGE once its flat stacks are maxed,
  *   • down-weight weapon offers once you already carry more than one gun.
  * In-run LUCK is clamped here ONCE (0..maxStacks); the rare+ weight multiplier `goodMul` folds in
@@ -155,8 +155,15 @@ function buildGates(ctx) {
     if (picks >= cap) blocked.add(id);
   }
   if (ctx.weaponExplosive || ctx.weaponFast) blocked.add('MOD_BLAST');
-  if (ctx.weaponOrbital) {
-    for (const id of ['MOD_PIERCE', 'MOD_BOUNCE', 'MOD_BULLET_SPEED', 'MOD_BLAST']) blocked.add(id);
+  // CP-B: stop offering the passive Blade Aura once it's at max level (mirrors GLOBAL_DAMAGE's
+  // maxStacks gate — the cap lives on the item effect so this module needn't import config).
+  const ba = itemById('BLADE_AURA');
+  if (ba && (ctx.auraLevel ?? 0) >= (ba.effect.maxStacks ?? Infinity)) blocked.add('BLADE_AURA');
+  // CP-B: armor plates are hard-capped at GUARD.maxCharges, so once you're full both armor picks are
+  // dead cards — withhold them (a maxed Greater Guard also blocks the lesser Guard, and vice-versa).
+  if ((ctx.guardCharges ?? 0) >= GUARD.maxCharges) {
+    blocked.add('GUARD');
+    blocked.add('GREATER_GUARD');
   }
   const luck = Math.max(0, Math.min(ctx.luck ?? 0, OFFERS.luck.maxStacks));
   if (luck >= OFFERS.luck.maxStacks) blocked.add('LUCK_UP');

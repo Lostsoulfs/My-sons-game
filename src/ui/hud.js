@@ -4,25 +4,36 @@
 // red blood-splatter flash.
 // =====================================================================
 
-import { MINIMAP } from '../config.js';
+import { MINIMAP, GUARD } from '../config.js';
 import { settings } from '../systems/settings.js';
 
 const $ = (id) => document.getElementById(id);
 
 let _toastTimer = null;
 
+// CP-B: guard charges render as ATOMIC ARMOR plates trailing the hearts. Charges are hard-capped at
+// GUARD.maxCharges (config), so the plate count is always the TRUTH — no hidden armor. Each hit strips
+// a plate before a heart (core/defense.js), so the plate popping off IS the block cue. `armor` defaults
+// to 0 so old callers keep working.
+const platesFor = (armor) => {
+  const p = Math.min(GUARD.maxCharges, Math.max(0, Math.floor(armor || 0)));
+  return p ? ' ' + '🛡️'.repeat(p) : '';
+};
+
 export const hud = {
-  setHearts(n, max) {
+  setHearts(n, max, armor = 0) {
     const el = $('hearts');
     if (!el) return;
-    el.textContent = '❤️'.repeat(Math.max(0, n)) + '🖤'.repeat(Math.max(0, max - n));
+    el.textContent =
+      '❤️'.repeat(Math.max(0, n)) + '🖤'.repeat(Math.max(0, max - n)) + platesFor(armor);
   },
 
   // Player 2 (co-op) hearts — green
-  setHearts2(n, max) {
+  setHearts2(n, max, armor = 0) {
     const el = $('hearts2');
     if (!el) return;
-    el.textContent = 'P2 ' + '💚'.repeat(Math.max(0, n)) + '🖤'.repeat(Math.max(0, max - n));
+    el.textContent =
+      'P2 ' + '💚'.repeat(Math.max(0, n)) + '🖤'.repeat(Math.max(0, max - n)) + platesFor(armor);
   },
 
   // show/hide the co-op (P2) HUD bits
@@ -47,7 +58,7 @@ export const hud = {
 
   // CP2: the active weapon's reload (ballistic) / overheat (energy) readout — bottom-centre.
   // Called per-frame from render() since the heat gauge bleeds continuously. `info` is
-  // Player.limiterHud() (or null for a limiter-less weapon like the orbital).
+  // Player.limiterHud() (or null for a limiter-less weapon).
   setLimiter(info) {
     const el = $('ammo');
     if (!el) return;

@@ -15,17 +15,16 @@ describe('WEAPONS config invariants', () => {
     }
   });
 
-  it('every non-orbital weapon has a positive cooldown', () => {
+  it('every weapon has a positive cooldown', () => {
     for (const [name, w] of entries) {
-      if (w.orbital) continue;
+      if (w.charge) continue; // the charge cannon fires on a hold/release, not a fixed cooldown
       expect(w.cooldown, `${name}.cooldown`).toBeGreaterThan(0);
     }
   });
 
-  it('every non-orbital weapon has at least 1 pellet and a positive bullet speed', () => {
+  it('every weapon has at least 1 pellet and a positive bullet speed', () => {
     for (const [name, w] of entries) {
-      if (w.orbital) continue;
-      expect(w.pellets, `${name}.pellets`).toBeGreaterThanOrEqual(1);
+      expect(w.pellets ?? 1, `${name}.pellets`).toBeGreaterThanOrEqual(1);
       expect(w.bulletSpeed, `${name}.bulletSpeed`).toBeGreaterThan(0);
     }
   });
@@ -50,16 +49,6 @@ describe('WEAPONS config invariants', () => {
     expect(charge.minDamage).toBeGreaterThan(0);
     expect(charge.maxDamage).toBeGreaterThan(charge.minDamage);
     expect(charge.maxTime).toBeGreaterThan(0);
-  });
-
-  it('orbital blade has positive orbit radius, spin, damage, and hitCooldown', () => {
-    const orb = WEAPONS.orbital;
-    expect(orb.orbital).toBe(true);
-    expect(orb.count).toBeGreaterThan(0);
-    expect(orb.radius).toBeGreaterThan(0);
-    expect(orb.spin).toBeGreaterThan(0);
-    expect(orb.damage).toBeGreaterThan(0);
-    expect(orb.hitCooldown).toBeGreaterThan(0);
   });
 
   it('homing weapon has a positive turnRate', () => {

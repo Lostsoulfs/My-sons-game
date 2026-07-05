@@ -11,7 +11,7 @@
 // entities/pickups.js) keeps it unit-testable and one source of truth for the offer system.
 // =====================================================================
 
-import { UPGRADES, GUARD, WEAPON_MODS, PICKUPS } from '../config.js';
+import { UPGRADES, GUARD, BLADE_AURA, WEAPON_MODS, PICKUPS } from '../config.js';
 import { marginalBonus } from './scaling.js';
 
 /** rarity tiers, low → high (the offer system's own ladder; adds `ultra` for the guard). */
@@ -61,8 +61,10 @@ export const ITEMS = [
   // CP4 (ADR-0037): MAX_HP_UP (HP growth) and DMG_REDUCT ("Tough Hide" soak) were CUT — incremental
   // survivability flattened the danger. Defense is now ONLY the all-or-nothing Guard block-charge.
   {
+    // CP-B: reskinned as diegetic ARMOR (a bolt-on Atomic-Age plate). Mechanic UNCHANGED — a guard
+    // charge still soaks one whole hit (core/defense.js); it now renders as a plate over your hearts.
     id: 'GUARD',
-    name: 'Guard',
+    name: 'Atomic Plating',
     category: 'upgrade',
     tier: 'rare',
     tags: ['defense'],
@@ -70,11 +72,22 @@ export const ITEMS = [
   },
   {
     id: 'GREATER_GUARD',
-    name: 'Greater Guard',
+    name: 'Powered Exo-Armor',
     category: 'upgrade',
     tier: 'ultra',
     tags: ['defense'],
     effect: { kind: 'guard', charges: GUARD.ultraCharges },
+  },
+  {
+    // CP-B: the passive blade aura (the old Orbital Blade weapon, reborn as an always-on upgrade).
+    // Stacks up to BLADE_AURA.maxLevel; maxStacks lives on the effect so offers.js can gate it maxed
+    // (mirrors GLOBAL_DAMAGE) without importing config.
+    id: 'BLADE_AURA',
+    name: 'Blade Aura',
+    category: 'upgrade',
+    tier: 'rare',
+    tags: ['offense', 'defense', 'crowd'],
+    effect: { kind: 'bladeAura', add: 1, maxStacks: BLADE_AURA.maxLevel },
   },
   {
     // ADR-0030 / CP4 (ADR-0037): the ultra GLOBAL damage reward. Reworked from a runaway MULTIPLIER
@@ -144,7 +157,6 @@ export const ITEMS = [
     ['HOMING', 'Homing Missiles', 'common', ['homing', 'aoe']],
     ['RAILGUN', 'Railgun', 'common', ['pierce', 'precise']],
     ['CHARGE', 'Charge Cannon', 'epic', ['burst', 'precise']],
-    ['ORBITAL', 'Orbital Blade', 'rare', ['crowd', 'defensive']],
     // --- 1950s matrix (rarity ⟂ flavor). `real`/`energy` tags carry flavor for future scoring. ---
     // ULTRA weapons (minigun, davycrockett) are OFFER-ONLY: here with tier:'ultra', but deliberately
     // absent from PICKUPS.rarity.itemRarity + entities/pickups.js WEAPON_TYPES (the B8 drop engine).
@@ -226,6 +238,8 @@ export function blurbFor(item, ctx = {}) {
       return `Heal ${e.amount} hearts`;
     case 'guard':
       return e.charges === 1 ? 'Block the next hit' : `Block the next ${e.charges} hits`;
+    case 'bladeAura':
+      return 'Whirling blades orbit you — passive contact damage';
     case 'mod':
       if (e.flag === 'pierce') return `Shots pierce +${e.amount} enemy`;
       if (e.flag === 'bounces') return `Shots bounce +${e.amount}`;

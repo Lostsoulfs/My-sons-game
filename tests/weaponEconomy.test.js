@@ -14,11 +14,7 @@ import { weaponTier } from '../src/core/items.js';
 
 const KEYS = Object.keys(WEAPONS);
 const scoreOf = (key) => powerScore(WEAPONS[key], WEAPON_LIMITS[key]);
-const dutyOf = (key) =>
-  WEAPONS[key].orbital ? 1 : weaponDuty(effectiveCooldown(WEAPONS[key]), WEAPON_LIMITS[key]);
-
-// The single passive/contact weapon with NO firing limiter (an intentional exception).
-const EXEMPT_FROM_DOWNSIDE = 'orbital';
+const dutyOf = (key) => weaponDuty(effectiveCooldown(WEAPONS[key]), WEAPON_LIMITS[key]);
 
 // Golden expected tier per weapon — the design intent, locked. Mirrors core/items.js +
 // PICKUPS.rarity.itemRarity (pistol = the base gun, implicitly common).
@@ -37,7 +33,6 @@ const EXPECTED_TIER = {
   ppsh: 'rare',
   machinegun: 'rare',
   rocket: 'rare',
-  orbital: 'rare',
   charge: 'epic',
   plasma: 'epic',
   maser: 'epic',
@@ -71,11 +66,13 @@ describe('every weapon is scored and tiered', () => {
   });
 });
 
-describe('the rarity pyramid (strict 8 / 7 / 5 / 2)', () => {
+describe('the rarity pyramid (strict 8 / 6 / 5 / 2)', () => {
+  // CP-B removed the Orbital Blade as a weapon (it's now a passive aura), dropping the rare count
+  // 7 → 6. Still a strictly-descending pyramid; the property that matters (rarer ⇒ fewer + stronger).
   it('the tier counts form the intended pyramid', () => {
     const counts = { common: 0, rare: 0, epic: 0, ultra: 0 };
     for (const key of KEYS) counts[weaponTier(key)]++;
-    expect(counts).toEqual({ common: 8, rare: 7, epic: 5, ultra: 2 });
+    expect(counts).toEqual({ common: 8, rare: 6, epic: 5, ultra: 2 });
   });
 
   it('per-tier median power strictly INCREASES common < rare < epic < ultra', () => {
@@ -88,7 +85,7 @@ describe('the rarity pyramid (strict 8 / 7 / 5 / 2)', () => {
     // Golden magnitudes: ordering alone is implied by the band+contiguity tests, so it can't catch a
     // proportional/units regression that keeps order. Pin the actual medians so a scale shift fails HERE.
     expect(c).toBeCloseTo(4.73, 1);
-    expect(r).toBeCloseTo(7.5, 1);
+    expect(r).toBeCloseTo(7.75, 1); // CP-B: rare median rose 7.5 → 7.75 when the Orbital Blade left the roster
     expect(e).toBeCloseTo(12.88, 1);
     expect(u).toBeCloseTo(17.13, 1);
   });
@@ -105,14 +102,13 @@ describe('the rarity pyramid (strict 8 / 7 / 5 / 2)', () => {
 });
 
 describe('every weapon pays a real downside (the duty-cycle lever)', () => {
-  it('exactly one weapon (the passive Orbital Blade) has no firing limiter', () => {
+  it('every weapon has a firing limiter (CP-B: no limiter-less weapon survives)', () => {
     const unlimited = KEYS.filter((key) => !WEAPON_LIMITS[key]);
-    expect(unlimited).toEqual([EXEMPT_FROM_DOWNSIDE]);
+    expect(unlimited).toEqual([]);
   });
 
-  it('every LIMITED weapon actually loses uptime (duty < 1 — energy guns really overheat)', () => {
+  it('every weapon actually loses uptime (duty < 1 — energy guns really overheat)', () => {
     for (const key of KEYS) {
-      if (key === EXEMPT_FROM_DOWNSIDE) continue;
       expect(dutyOf(key), `${key} duty`).toBeLessThan(1);
     }
   });

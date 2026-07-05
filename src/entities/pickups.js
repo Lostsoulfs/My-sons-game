@@ -41,7 +41,6 @@ export const WEAPON_TYPES = [
   'RAILGUN',
   'BOUNCER',
   'CHARGE',
-  'ORBITAL',
   // 1950s matrix — ground-droppable tiers only (ULTRA minigun/davycrockett are offer-only)
   'UZI',
   'CARBINE',
@@ -69,7 +68,6 @@ const LOOK = {
   RAILGUN: { color: 0x66e0ff, label: 'RAILGUN!', weapon: true },
   BOUNCER: { color: 0x9b7bff, label: 'BOUNCER!', weapon: true },
   CHARGE: { color: 0xffd23a, label: 'CHARGE CANNON!', weapon: true },
-  ORBITAL: { color: 0x66ffd0, label: 'ORBITAL BLADE!', weapon: true },
   // 1950s matrix — ground-droppable guns (energy guns get their bright bullet color)
   UZI: { color: 0xc8c8b0, label: 'GREASE GUN!', weapon: true },
   CARBINE: { color: 0xd8c090, label: 'M1 CARBINE!', weapon: true },

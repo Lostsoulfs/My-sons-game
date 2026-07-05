@@ -8,7 +8,7 @@ import {
   itemsByCategory,
   blurbFor,
 } from '../src/core/items.js';
-import { PICKUPS, WEAPONS } from '../src/config.js';
+import { PICKUPS, WEAPONS, BLADE_AURA } from '../src/config.js';
 
 // B9a — the offerable-item registry. Pure data + blurbs, so the offer screen can't drift from it.
 
@@ -79,6 +79,24 @@ describe('blurbFor (the exact effect line on a card)', () => {
     expect(blurbFor(itemById('GREATER_GUARD'))).toBe('Block the next 3 hits');
     expect(blurbFor(itemById('MOD_PIERCE'))).toMatch(/pierce/i);
     expect(blurbFor(itemById('SHOTGUN'))).toBe('Shotgun');
+    expect(blurbFor(itemById('BLADE_AURA'))).toMatch(/blade/i);
+  });
+});
+
+// CP-B: the Orbital Blade left the weapon roster and came back as the always-on Blade Aura upgrade.
+describe('CP-B: the passive Blade Aura upgrade', () => {
+  it('is a stacking bladeAura-effect upgrade capped at config.BLADE_AURA.maxLevel', () => {
+    const ba = itemById('BLADE_AURA');
+    expect(ba.category).toBe('upgrade');
+    expect(ba.effect.kind).toBe('bladeAura');
+    expect(ba.effect.add).toBe(1);
+    expect(ba.effect.maxStacks).toBe(BLADE_AURA.maxLevel); // stays in lockstep with the config cap
+  });
+
+  it('is no longer a weapon (the Orbital Blade weapon is gone from every registry)', () => {
+    expect(WEAPONS.orbital).toBeUndefined();
+    expect(itemsByCategory.weapon.some((it) => it.id === 'ORBITAL')).toBe(false);
+    expect(PICKUPS.rarity.itemRarity.ORBITAL).toBeUndefined();
   });
 });
 
