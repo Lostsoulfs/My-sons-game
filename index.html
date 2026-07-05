@@ -855,38 +855,87 @@
         color: #ffd24a;
         text-shadow: 0 3px 14px #000;
       }
-      #pause-body {
+      /* the hub: a vertical list of buttons */
+      #pause-hub {
         display: flex;
-        flex-wrap: wrap;
-        gap: 18px;
-        justify-content: center;
-        align-items: flex-start;
-        max-width: 980px;
-        max-height: 66vh;
-        overflow: auto;
+        flex-direction: column;
+        gap: 12px;
+        align-items: center;
       }
-      .pause-panel {
+      .pause-hub-btn {
+        cursor: pointer;
+        width: 300px;
+        padding: 13px 20px;
+        font-size: 19px;
+        font-weight: 800;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        color: #fff;
+        background: #241c30;
+        border: 2px solid #6a5a8a;
+        border-radius: 12px;
+        transition:
+          transform 0.1s ease,
+          background 0.15s ease;
+      }
+      .pause-hub-btn:hover {
+        background: #34285a;
+        transform: scale(1.03);
+        outline: 3px solid #ffd24a;
+      }
+      .pause-hub-btn.resume {
+        border-color: #ff5a4f;
+      }
+      .pause-hub-btn.resume:hover {
+        background: #4a2030;
+      }
+      /* a sub-view: back + title + scrollable body */
+      #pause-view {
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        width: min(92vw, 900px);
+      }
+      #pause-view .menu-back {
+        align-self: flex-start;
+        cursor: pointer;
+        padding: 8px 16px;
+        font-size: 15px;
+        font-weight: 700;
+        color: #fff;
+        background: #241c30;
+        border: 2px solid #6a5a62;
+        border-radius: 10px;
+      }
+      #pause-view .menu-back:hover {
+        background: #34285a;
+      }
+      #pause-view-body {
+        width: 100%;
+        max-height: 62vh;
+        overflow: auto;
         background: #14101c;
         border: 1px solid #3a3350;
         border-radius: 14px;
-        padding: 14px 16px;
-        min-width: 220px;
+        padding: 16px 18px;
       }
       .pause-panel-title {
-        font-size: 14px;
+        font-size: 15px;
         font-weight: 800;
         letter-spacing: 2px;
         text-transform: uppercase;
         color: #b9a6ff;
-        margin-bottom: 10px;
       }
       #pause-map {
         position: relative;
-        margin: 8px auto;
+        margin: 4px auto;
       }
-      #pause-stats {
+      /* multi-player columns (stats / gear) */
+      .pause-cols {
         display: flex;
-        gap: 18px;
+        flex-wrap: wrap;
+        gap: 26px;
         justify-content: center;
       }
       .pause-statcol {
@@ -946,26 +995,6 @@
       }
       #pause-vol {
         width: 100%;
-      }
-      #pause-resume {
-        cursor: pointer;
-        width: 260px;
-        padding: 14px 18px;
-        font-size: 20px;
-        font-weight: 800;
-        letter-spacing: 2px;
-        text-transform: uppercase;
-        color: #fff;
-        background: #2c2230;
-        border: 2px solid #ff5a4f;
-        border-radius: 12px;
-        transition:
-          transform 0.1s ease,
-          background 0.15s ease;
-      }
-      #pause-resume:hover {
-        background: #4a2030;
-        transform: scale(1.03);
       }
       #pausemenu .hint {
         font-size: 13px;
@@ -1068,28 +1097,22 @@
       <div id="offer-controls"></div>
     </div>
 
-    <!-- CP-A pause overlay: map + options (sound/FX) + opt-in all-stats. ESC / Start toggles. -->
+    <!-- CP-A pause HUB: a list of buttons, each opening its own view. ESC / Start toggles. -->
     <div id="pausemenu">
       <h1>Paused</h1>
-      <div id="pause-body">
-        <div class="pause-panel">
-          <div class="pause-panel-title">Map</div>
-          <div id="pause-map"></div>
-        </div>
-        <div class="pause-panel">
-          <div class="pause-panel-title">Stats</div>
-          <div id="pause-stats"></div>
-        </div>
-        <div class="pause-panel">
-          <div class="pause-panel-title">Options</div>
-          <div id="pause-options">
-            <button id="pause-mute" class="pause-opt"></button>
-            <input id="pause-vol" type="range" min="0" max="1" step="0.05" aria-label="Volume" />
-            <button id="pause-fx" class="pause-opt"></button>
-          </div>
-        </div>
+      <div id="pause-hub">
+        <button id="pause-resume" class="pause-hub-btn resume">▶ Resume</button>
+        <button class="pause-hub-btn" data-view="map">🗺️ Map</button>
+        <button class="pause-hub-btn" data-view="stats">📊 Stats</button>
+        <button class="pause-hub-btn" data-view="gear">🎒 Gear</button>
+        <button class="pause-hub-btn" data-view="unlocks">🔓 Unlocks</button>
+        <button class="pause-hub-btn" data-view="options">⚙️ Options</button>
       </div>
-      <button id="pause-resume">▶ Resume</button>
+      <div id="pause-view">
+        <button id="pause-back" class="menu-back">← Back</button>
+        <div id="pause-view-title" class="pause-panel-title"></div>
+        <div id="pause-view-body"></div>
+      </div>
       <div class="hint">ESC / Start to resume</div>
     </div>
 
