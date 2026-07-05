@@ -16,15 +16,30 @@ import { loadAnimated } from '../../core/animModel.js';
 import { puffballTarget } from '../../core/progression.js';
 import { topUpMinions } from '../enemies.js';
 import { aimedBurst, telegraphedRing, fireAngles } from './patterns.js';
-import { gapRing } from './emitters.js';
+import { gapRing, layeredFlower } from './emitters.js';
 
-// P2 signature: a spore ring with a GUARANTEED seeded dodge gap (distinct lane).
+// P2 — the spore barrage. Below 50% HP (boss.ragePhase, set by the shell's phase-flip) the King
+// BLOOMS: its gapped spore ring opens into a layered FLOWER — two interleaved petal rings, rotated
+// each volley so the gaps sweep. Same slow speed + 0.55s telegraph → still fair, just fuller.
 function fireSporeRing(boss, game) {
   boss.phase += 0.3;
-  const n = boss.ringCount;
-  const gapStart = game.rng.int(n); // seeded dodge lane (deterministic, testable)
-  const angles = gapRing(n, gapStart, boss.cfg.ringGap, boss.phase);
-  fireAngles(boss, game, angles, boss.cfg.ringBulletSpeed, 0.15);
+  const c = boss.cfg;
+
+  if (boss.ragePhase <= 0) {
+    const n = boss.ringCount;
+    const gapStart = game.rng.int(n); // seeded dodge lane (deterministic, testable)
+    fireAngles(boss, game, gapRing(n, gapStart, c.ringGap, boss.phase), c.ringBulletSpeed, 0.15);
+    return;
+  }
+
+  // bloom: a rotating layered flower (weave the moiré gaps between the two petal rings)
+  const petals = layeredFlower(
+    c.flowerLayers,
+    c.flowerBase,
+    c.flowerPhaseStep,
+    c.flowerCountStep,
+  ).map((a) => a + boss.phase);
+  fireAngles(boss, game, petals, c.ringBulletSpeed, 0.18);
 }
 
 export const mushroom = {
@@ -90,6 +105,13 @@ export const mushroom = {
           });
       },
     );
+  },
+
+  // phase flip (shell-driven): the cap flushes an angry bloom as the King opens up (procedural
+  // mesh only — animate() only touches cap SCALE, so a color change persists; guarded for the GLB).
+  onPhaseFlip(boss) {
+    boss.cap?.material?.color?.setHex?.(0xd9354f); // hot bloom-red
+    boss.cap?.material?.emissive?.setHex?.(0xff2a3a);
   },
 
   animate(boss) {

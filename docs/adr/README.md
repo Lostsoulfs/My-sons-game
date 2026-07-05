@@ -45,3 +45,4 @@ below).
 | [0037](0037-luck-curse-curve-upgrade-rework.md)           | Luck/curse magic-find curve + survival-upgrade rework (cut HP/soak)        | Proposed |
 | [0038](0038-character-select-ally-removal.md)             | Dad/Son character select + AI-ally removal (1P solo, ally→future pet)      | Proposed |
 | [0039](0039-orbital-to-passive-aura-and-visible-armor.md) | Orbital Blade → passive Blade Aura; Guard → visible Atomic Armor plates    | Accepted |
+| [0040](0040-boss-phase-flips.md)                          | Boss HP-gated phase flips — wire the shelved emitters (spiral/flower/arc)  | Proposed |
