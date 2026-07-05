@@ -21,8 +21,10 @@ import {
   FAIRNESS_TARGETS,
   DEBUG_FAIRNESS,
   FEEL,
+  JUICE,
 } from '../config.js';
 import { hardnessFacet } from '../core/scaling.js';
+import { pendingFlips } from '../core/phaseFlip.js';
 import { BEHAVIORS } from './bosses/index.js';
 import { hud } from '../ui/hud.js';
 import { castShadows } from '../core/shadows.js';
@@ -69,6 +71,8 @@ export class Boss {
     this.contactTimer = 0;
     this.charge = 0; // >0 while telegraphing (drives the puff-up scale)
     this.phase = 0;
+    this.ragePhase = 0; // 0 until an HP breakpoint flips it (cfg.phaseFlips); behaviors read it
+    this._flipsPassed = 0; // how many phase-flip breakpoints have fired (monotonic)
     this.t = 0;
     this.enraged = false; // duo: set when a partner falls (no revive)
     this.enrageMul = 1; // permanent rage bump folded into `rage` once enraged
@@ -110,12 +114,45 @@ export class Boss {
     audio.play('bossRoar');
   }
 
+  /**
+   * Opt-in HP-breakpoint phase flips (cfg.phaseFlips, DESCENDING e.g. [0.5, 0.25]). On each
+   * crossing, run one cinematic beat and hand the behavior an `onPhaseFlip(boss, game, idx)`
+   * so it can escalate its pattern set. Monotonic via `_flipsPassed` (a heal can't un-flip).
+   */
+  _checkPhaseFlips(game) {
+    const bps = this.cfg.phaseFlips;
+    if (!bps || this._flipsPassed >= bps.length) return;
+    const frac = this.hp / this.maxHp;
+    for (const idx of pendingFlips(frac, bps, this._flipsPassed)) {
+      this._flipsPassed = idx + 1;
+      this.ragePhase = idx + 1;
+      this._onPhaseFlip(game, idx);
+    }
+  }
+
+  /** the shared "phase 2!" beat: a fair screen-wipe + tell, then the boss-specific escalation */
+  _onPhaseFlip(game, idx) {
+    this.charge = 0; // cancel any mid-telegraph so the flip reads cleanly (fair)
+    game.bullets?.clearEnemyBullets?.(); // wipe the screen — a breathing beat, not a free hit
+    game.juice.addTrauma(JUICE.traumaOnPhaseFlip);
+    game.juice.hitStop(JUICE.hitStopOnPhaseFlip);
+    const sf = FEEL.screenFlash.phaseFlip;
+    hud.flashScreen(sf.peak, sf.color, sf.ms);
+    this.mesh.scale.setScalar(1.5); // a visible "I'm changing" pop (settles in update)
+    audio.play(this.behavior.roar || 'bossRoar');
+    this.behavior.onPhaseFlip?.(this, game, idx); // boss-specific recolor / pattern swap
+  }
+
   update(dt, game) {
     if (this.dead) return;
     const p = game.nearestPlayer(this.x, this.z) || game.player;
     this.t += dt;
     this.contactTimer -= dt;
     const rage = this.rage;
+
+    // HP-gated PHASE FLIP: as it crosses a breakpoint it does a one-time "phase 2" beat
+    // (screen wipe + roar) and bumps ragePhase, which its behavior reads to escalate patterns.
+    this._checkPhaseFlips(game);
 
     if (this.behavior.move) {
       this.behavior.move(this, dt, game, p, rage);

@@ -460,6 +460,18 @@ export const BOSS = {
     p3Count: 5,
     p3SpreadRad: 0.8, // ~46° fan
     p3BulletSpeed: 12,
+
+    // PHASE FLIPS (ADR-0040) — the war-machine OVERHEATS as it's beaten down. At half HP its
+    // P2 barrage swaps from the gap-ring to a rotating multi-arm spiral; at quarter HP it "comes
+    // apart" — the spiral gains an arm AND a counter-rotating arc-sweep layered under it. Same
+    // telegraph plumbing (the eye still flares 500ms first) → still kid-fair, just meaner.
+    phaseFlips: [0.5, 0.25], // HP fractions (DESCENDING) that trigger a flip
+    spiralArms: 3, // rotating arms in the overheat barrage (+1 at the 2nd flip)
+    spiralPerArm: 3, // bullets per arm
+    spiralStep: 0.42, // radians between bullets along an arm (arm width)
+    spiralBulletSpeed: 8, // slow enough to read the rotating arms + weave the gaps
+    arcCount: 4, // 2nd-flip counter-sweep: a short arc layered under the spiral
+    arcStep: 0.6, // radians between the counter-sweep's bullets
   },
 
   // ---- the mushroom boss (Caden's pick) — Expansion 6 Stage 2 ----
@@ -496,6 +508,15 @@ export const BOSS = {
 
     // P4 — puffball spawns (count gated by HP in puffballTarget())
     spawnInterval: 3.0,
+
+    // PHASE FLIP (ADR-0040) — at half HP the King BLOOMS: its P2 spore ring opens into a
+    // layered flower (two interleaved rings whose petals stagger), rotating each volley. Denser
+    // than the gapped ring but still slow + telegraphed (0.55s) → weave the moiré gaps.
+    phaseFlips: [0.5],
+    flowerLayers: 2, // concentric petal rings
+    flowerBase: 7, // bullets in the inner ring (outer = base + countStep)
+    flowerCountStep: 2, // extra bullets per outer layer
+    flowerPhaseStep: 0.32, // radians the layers are offset → interleaved petals
   },
 
   // ---- the Dog/Cat DUO (first multi-boss) — Expansion 6 Stage 3 ----
@@ -904,6 +925,7 @@ export const JUICE = {
   traumaOnKill: 0.28, // an enemy died
   traumaOnExplode: 0.3, // rocket / explosive-bullet AoE
   traumaOnBossDeath: 0.45, // a boss died (trauma² keeps it punchy without nausea)
+  traumaOnPhaseFlip: 0.5, // a boss crossed an HP breakpoint ("phase 2!") — a big, felt beat
   traumaOnCatSwipe: 0.12, // Whisker's cross-swipe volley
   decayPerSec: 2, // trauma shed per second (higher = snappier, shorter shake)
   shakeMaxOffset: 0.35, // world-unit camera X/Z offset at trauma = 1
@@ -914,6 +936,7 @@ export const JUICE = {
   hitStopOnKill: 0.06, // seconds the world freezes on a kill
   hitStopOnHurt: 0.09,
   hitStopOnBossDeath: 0.12, // a beat longer on a boss kill
+  hitStopOnPhaseFlip: 0.1, // a punchy freeze as the boss transforms
 };
 
 // ---- screen flash (feel) — a brief full-screen alpha pulse for impact ----
@@ -925,6 +948,7 @@ export const FEEL = {
     hurt: { peak: 0.22, color: '#ff2a2a', ms: 90 }, // subtle red, on top of the blood splatter
     bossDeath: { peak: 0.4, color: '#ffffff', ms: 140 }, // white pop when a boss falls
     bossReveal: { peak: 0.5, color: '#ffd18a', ms: 220 }, // warm slam on a boss entrance reveal (ADR-0033)
+    phaseFlip: { peak: 0.45, color: '#ff8a3a', ms: 200 }, // atomic-orange flash when a boss flips phase
   },
   // ---- knockback (research report (5)) — a hit shoves an enemy back a little, then it decays.
   // Pure GAMEPLAY (it moves enemies), so it is NOT gated by reducedEffects. Bosses are immovable by

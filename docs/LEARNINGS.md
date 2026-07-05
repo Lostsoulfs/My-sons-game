@@ -1116,3 +1116,25 @@ heatPerShot − coolRate·cooldown ≤ 0`, `dutyEnergy` returns 1 — i.e. no do
   MECHANIC too (`GUARD.maxCharges`, clamp on apply) + gate both armor offers at max, so the plate count
   is always the truth. Lesson: when you surface a value on the HUD, audit whether the underlying field
   is actually bounded to what you're drawing — a visual cap on an unbounded field reads as a bug.
+
+## 2026-07-05 — boss phase-flips (ADR-0040)
+
+- **A 6-persona "MoE" design panel's top pick was verifiable in code**: three emitters
+  (`multiArmSpiral`, `layeredFlower`, `arc`) exported + unit-tested in `bosses/emitters.js`, fired by
+  no boss. Grep the emitter names in `bosses/` before believing "we don't have spirals" — we did, shelved.
+- **Reuse the telegraph plumbing for free fairness.** A phase-flip that adds a _new_ timed attack fights
+  the shared `boss.charge`. Instead, branch each boss's _existing_ telegraphed fire function on
+  `boss.ragePhase` to swap the shape — every flipped volley keeps its wind-up, so `fairness.test.js`
+  stays green with zero new fairness surface.
+- **Crossing detection belongs in a pure core helper** (`core/phaseFlip.js pendingFlips`): DESCENDING
+  breakpoints, monotonic `_flipsPassed` so a heal can't un-flip, and it catches BOTH flips if one big
+  hit skips a band. The shell owns the beat (`clearEnemyBullets` wipe + flash + roar); the behavior owns
+  the escalation + an `onPhaseFlip` recolor.
+- **`onPhaseFlip` mesh tweaks must survive `animate()`.** The enforcer recolors its eye (animate only
+  touches eye _scale_ → the color persists), but a `multiplyScalar` on a part animate() rewrites is a
+  silent no-op. Also: the mushroom cap is a **GLB in dev**, so its cap recolor is a guarded no-op — the
+  shared flip beat still plays. Guard every part/material access with `?.`.
+- **Live-verify the runtime path** by constructing a `Boss` against `window.__game` and calling
+  `_checkPhaseFlips` across breakpoints — `attacks` is on `boss.behavior`, NOT the instance. Confirmed
+  ragePhase 0→1→2 (enforcer) / clamped at 1 (mushroom), enemy bullets wiped on flip, spiral/flower
+  fire without throwing. 480 tests; gate green.
