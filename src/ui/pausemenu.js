@@ -50,7 +50,7 @@ function wireHub() {
 function showHub() {
   const hub = $('pause-hub');
   const view = $('pause-view');
-  if (hub) hub.style.display = '';
+  if (hub) hub.style.display = 'flex'; // explicit (matches the CSS) so a stray inline '' can't fight it
   if (view) view.style.display = 'none';
 }
 
@@ -75,7 +75,7 @@ function openView(key) {
   const hub = $('pause-hub');
   const view = $('pause-view');
   if (hub) hub.style.display = 'none';
-  if (view) view.style.display = '';
+  if (view) view.style.display = 'flex'; // NOT '' — the CSS default is display:none, so '' would re-hide it
 }
 
 // ---- tiny DOM helpers -------------------------------------------------------
