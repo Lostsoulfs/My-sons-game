@@ -58,6 +58,7 @@ import { hud } from './ui/hud.js';
 import { prompts } from './ui/prompts.js';
 import { showHumanChoice, moveChoiceFocus, confirmChoice } from './ui/humanchoice.js';
 import { showOffer, moveOfferFocus, confirmOffer } from './ui/offer.js';
+import { showPauseMenu, hidePauseMenu } from './ui/pausemenu.js';
 import * as audio from './systems/audio.js';
 import { saves, baselineStacks } from './core/saves.js';
 import { openMetaPanel } from './ui/metaProgress.js';
@@ -380,8 +381,42 @@ export class Game {
     this.pickups.push(new Pickup(this.scene, type, x, z));
   }
 
+  // CP-A pause: remember the state we came from, freeze, and open the pause overlay (map + options
+  // + all-stats). The overlay reads live fields via Player.statsSnapshot() and reuses the HUD
+  // minimap paint. Resume returns to exactly the state we paused from.
+  _pause() {
+    this._pausedFrom = this.state;
+    this.state = State.PAUSED;
+    showPauseMenu({
+      players: this.players,
+      coop: this.coop,
+      mapView: minimapView(this.floorplan, { currentId: this.nodeId, explored: this.explored }),
+      onResume: () => this._resume(),
+    });
+  }
+
+  _resume() {
+    hidePauseMenu();
+    this.state = this._pausedFrom ?? State.PLAYING;
+    this.input.clearKeys(); // drop anything held while the menu was up — no stuck movement on resume
+  }
+
   update(dt) {
     this.input.update(); // poll gamepad once per tick
+
+    // PAUSE (CP-A): a frozen overlay state. Nothing below runs — no entities, particles, or juice
+    // advance — so it's deterministic (the pause lives OUTSIDE the seeded sim). ESC / Start toggles.
+    if (this.state === State.PAUSED) {
+      if (this.input.consumePause()) this._resume();
+      return;
+    }
+    if (
+      (this.state === State.PLAYING || this.state === State.ROOM_CLEAR) &&
+      this.input.consumePause()
+    ) {
+      this._pause();
+      return;
+    }
 
     // restart from a finished run — keep the same mode + chosen character (CP5)
     if ((this.state === State.DEAD || this.state === State.WIN) && this.input.consumeRestart()) {

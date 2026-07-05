@@ -827,6 +827,151 @@
       #meta-close:hover {
         background: #2a2a50;
       }
+
+      /* ---- CP-A pause overlay: map + options + opt-in all-stats (semi-transparent so the
+         frozen game shows behind). ESC / Start toggles; the sim doesn't tick while shown. ---- */
+      #pausemenu {
+        position: fixed;
+        inset: 0;
+        z-index: 22;
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 20px;
+        text-align: center;
+        background: rgba(7, 5, 10, 0.86);
+        color: #fff;
+        pointer-events: auto;
+      }
+      #pausemenu.show {
+        display: flex;
+      }
+      #pausemenu h1 {
+        margin: 0;
+        font-size: 40px;
+        letter-spacing: 6px;
+        text-transform: uppercase;
+        color: #ffd24a;
+        text-shadow: 0 3px 14px #000;
+      }
+      #pause-body {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 18px;
+        justify-content: center;
+        align-items: flex-start;
+        max-width: 980px;
+        max-height: 66vh;
+        overflow: auto;
+      }
+      .pause-panel {
+        background: #14101c;
+        border: 1px solid #3a3350;
+        border-radius: 14px;
+        padding: 14px 16px;
+        min-width: 220px;
+      }
+      .pause-panel-title {
+        font-size: 14px;
+        font-weight: 800;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        color: #b9a6ff;
+        margin-bottom: 10px;
+      }
+      #pause-map {
+        position: relative;
+        margin: 8px auto;
+      }
+      #pause-stats {
+        display: flex;
+        gap: 18px;
+        justify-content: center;
+      }
+      .pause-statcol {
+        min-width: 190px;
+        text-align: left;
+      }
+      .pause-statcol-head {
+        font-size: 15px;
+        font-weight: 800;
+        color: #ffeede;
+        margin-bottom: 8px;
+        letter-spacing: 1px;
+      }
+      .pause-stat-section {
+        margin-bottom: 10px;
+      }
+      .pause-stat-title {
+        font-size: 11px;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        color: #8a7fb0;
+        margin-bottom: 3px;
+      }
+      .pause-stat-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+      .pause-stat-label {
+        color: #cbb9c6;
+      }
+      .pause-stat-value {
+        color: #fff;
+        font-variant-numeric: tabular-nums;
+        font-weight: 700;
+      }
+      #pause-options {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        align-items: stretch;
+      }
+      .pause-opt {
+        cursor: pointer;
+        padding: 10px 14px;
+        font-size: 15px;
+        font-weight: 700;
+        color: #fff;
+        background: #241c30;
+        border: 2px solid #6a5a8a;
+        border-radius: 10px;
+      }
+      .pause-opt:hover {
+        background: #34285a;
+      }
+      #pause-vol {
+        width: 100%;
+      }
+      #pause-resume {
+        cursor: pointer;
+        width: 260px;
+        padding: 14px 18px;
+        font-size: 20px;
+        font-weight: 800;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        color: #fff;
+        background: #2c2230;
+        border: 2px solid #ff5a4f;
+        border-radius: 12px;
+        transition:
+          transform 0.1s ease,
+          background 0.15s ease;
+      }
+      #pause-resume:hover {
+        background: #4a2030;
+        transform: scale(1.03);
+      }
+      #pausemenu .hint {
+        font-size: 13px;
+        color: #9a8a8a;
+        letter-spacing: 1px;
+      }
     </style>
   </head>
   <body>
@@ -921,6 +1066,31 @@
       <div id="offer-cards"></div>
       <div id="offer-reroll"></div>
       <div id="offer-controls"></div>
+    </div>
+
+    <!-- CP-A pause overlay: map + options (sound/FX) + opt-in all-stats. ESC / Start toggles. -->
+    <div id="pausemenu">
+      <h1>Paused</h1>
+      <div id="pause-body">
+        <div class="pause-panel">
+          <div class="pause-panel-title">Map</div>
+          <div id="pause-map"></div>
+        </div>
+        <div class="pause-panel">
+          <div class="pause-panel-title">Stats</div>
+          <div id="pause-stats"></div>
+        </div>
+        <div class="pause-panel">
+          <div class="pause-panel-title">Options</div>
+          <div id="pause-options">
+            <button id="pause-mute" class="pause-opt"></button>
+            <input id="pause-vol" type="range" min="0" max="1" step="0.05" aria-label="Volume" />
+            <button id="pause-fx" class="pause-opt"></button>
+          </div>
+        </div>
+      </div>
+      <button id="pause-resume">▶ Resume</button>
+      <div class="hint">ESC / Start to resume</div>
     </div>
 
     <!-- accessibility / feel settings: volume, mute, hitbox overlay, effects (persisted) -->
