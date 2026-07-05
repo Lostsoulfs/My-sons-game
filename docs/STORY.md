@@ -201,6 +201,87 @@ Keep new content inside these so the theme doesn't get lost:
    alive.**
 7. **Fun-first, kid-fair** (ADR-0005): readable telegraphs, dodge gaps, nothing cheap.
 
+## The hidden layer — engineered war, the Echo subjects, and the collusion (2026-07-05 lore session)
+
+> **How to read this section.** Everything above is the **surface truth** — what an ordinary
+> first playthrough shows: monsters poured out of an experiment gone wrong, the war was human
+> paranoia, _we did this_. That reading stays true and complete on its own. This section is the
+> **layer underneath it** — a deeper truth the game **never states on a first run**. It surfaces
+> only through repeat playthroughs, secret rooms/endings, and NG+ (see _Multi-playthrough_ below).
+> The two layers must not contradict: the surface tragedy is real; the hidden layer explains that
+> _more of it was on purpose than anyone was meant to know._ Firmness is marked per beat.
+
+### Engineered distrust — the war was manufactured _(locked)_
+
+The civil war (people vs. government) reads on the surface as organic paranoia spiraling out of
+control. The hidden truth: **it was engineered.** The government can't wield magic or literal
+mind-control the way rift-things can — so instead it **manufactured distrust**, turning neighbors
+and factions against each other until the country tore itself apart. The civil war wasn't a
+failure of order; it was a **tool**. (This threads the existing MK-ULTRA and Echo-SAGE flavor —
+those weren't just background paranoia, they were the delivery mechanism.)
+
+### Echo is used on people — the subjects _(locked)_
+
+Echo (the harvested nuclear force; see _The energy source_) is not only rift fuel. The government
+**doses people with it** — test subjects — to make them stronger and to power exotic weapons.
+
+- **It deforms or breaks almost everyone.** Most subjects mutate, lose their minds, or both. The
+  program treats them as disposable.
+- **The leaders never take it themselves.** Echo is for subjects and soldiers, never the people
+  who order its use. That hypocrisy is a core piece of who the villains are.
+- **The Dad and the Son can use Echo without deforming or going insane.** Why they're different
+  is a mystery the player may earn late — but it's the reason they can keep getting stronger and
+  keep pushing toward (and eventually into) the rift when others can't.
+- **Mechanical tie-in:** the meta-currency the player grinds — **Echoes**, spent in **Resonance**
+  to permanently level up — _is this substance_. Every permanent upgrade is the Dad and Son dosing
+  themselves with the thing that ruins everyone else. The currency **is** the plot; nothing new to
+  build, just name it with intent.
+
+### The father-son tech duo — how they get through _(strong, tentative on specifics)_
+
+The Dad and Son are **not** anti-government heroes or chosen ones. They're a **tech-savvy,
+lone-wolf father-son duo** — scavengers and tinkerers who **gather and assemble the pieces** needed
+to reach and enter the rift. Prior humans could only enter the rift in heavy rad-shielding suits;
+the duo engineers their own way in. This answers the old open question _"why are they still
+together in the worst place on earth"_: they're a team by trade and temperament, not by fate.
+(Names still open — Caden + Scott pick.)
+
+### The demon companion — a defector, not a pet _(locked concept; mechanics in plan 0003, CP-C)_
+
+Not every rift-thing wants the war. **Some monsters were sealed off — cut out of any ability to
+communicate with humans** — and among them are ones who never chose to fight. One such creature can
+be brought along as a **companion in battle**: mechanically the demon ally (see plan
+[0003](plans/0003-ui-first-legibility-arc.md)). It is **not a "pet," not cute** — it's a demon out
+of the portal, kept at your side. It's the first crack in the surface story: if a monster can _not_
+want the war, then the war was never simply "monsters vs. us." It's the on-ramp to the collusion
+reveal and to the later playable-monster perspective.
+
+### The collusion — gov and monsters, secretly _(direction only — deliberately unresolved)_
+
+The deepest layer, revealed only very late (NG+ / secret endings / possible DLC): **elements of the
+government and certain rift-powers are secretly in contact — working together toward some end,
+while each plans to betray the other.** This does **not** mean a mass organized invasion (the
+general monster population is still disoriented and un-organized, per _The other world_) — it's an
+**elite-level collusion** hidden beneath the chaos. **What they're building toward is not yet
+decided ("IDK what yet").** Capture the shape, not the specifics; lock the endgame later, on
+purpose, so a first-time player never smells it.
+
+### Playing the other side — the perspective flip _(direction only)_
+
+At some point deep in the layered story, the player **crosses fully over and/or plays as a monster**
+— or comes to understand the war from a rift-thing's point of view (the companion is the seed of
+this). A tool the humans lack — the rift-things' capacity for something like mind-to-mind contact —
+becomes legible from the inside. Late, secret, NG+ territory.
+
+### Multi-playthrough, not just endless _(design intent)_
+
+The **first run is a warm-up, not the ending.** Story mode is built for **multiple playthroughs**:
+secret endings, hidden areas and rooms, and truths that only assemble across repeat runs — story
+replayability comes from **grinding Echoes** (the substance) and peeling back the hidden layer, not
+from an infinite treadmill. **Endless** is a separate, deliberately brutal mode that ramps fast and
+hard (tuned as boss patterns/phases mature) — see plan [0003](plans/0003-ui-first-legibility-arc.md),
+CP-E. The distinction: Story = _depth across runs_; Endless = _how far can you push one run._
+
 ## Open questions / placeholders (decide later, then write it here)
 
 - **Name of the other side** — the world is described in _The other world_ section above, but it
