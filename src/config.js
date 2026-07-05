@@ -641,6 +641,19 @@ export const GRAPHICS = {
   pixelRatioCap: 2, // max devicePixelRatio. Restored to 2 now the discrete GPU is confirmed (the 1.5 was an iGPU red-herring dial-back). Only bites on hi-DPI panels; A/B live in the debug "Graphics" folder.
   toneMapping: 'aces', // filmic curve: 'aces' | 'agx' | 'neutral' | 'none'
   aaSamples: 8, // WebGL2 MSAA samples for the post-FX path (0 = off). Raised 4→8 (discrete-GPU headroom).
+  // FPS-2: the boot-time LOW tier (core/graphics.js resolveGraphicsTier). Deep-merged onto GRAPHICS
+  // BEFORE the scene is built when the tier resolves to 'low' — a software/headless GL renderer, or
+  // an explicit `?gfx=low`. Keeps the pipeline coherent (postfx stays enabled, just cheap): no MSAA,
+  // no shadows, no AO, pixelRatio 1, flat floor. The player's real GPU never hits this; restore with
+  // `?gfx=high`. Tune freely — every knob mirrors a real GRAPHICS key.
+  lowPreset: {
+    pixelRatioCap: 1, // halve fragments on hi-DPI/headless panels
+    aaSamples: 0, // drop MSAA (the biggest software-GL cost)
+    bloom: { enabled: false }, // skip the mip-blur bloom pass
+    shadows: { enabled: false }, // no shadow map (scene.js reads this false → shadowMap off)
+    ao: { enabled: false }, // skip N8AO (expensive even on real iGPUs)
+    floor: { enabled: false }, // flat PALETTE.ground instead of the PBR asphalt set (also skips texture load)
+  },
   bloom: {
     enabled: true, // FPS-1: A/B the bloom pass live in the debug "Graphics" folder
     intensity: 1.15, // glow strength (raised 0.8→1.15 — brighter threats; still luminance-gated so the dark world stays dark)

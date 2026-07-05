@@ -857,3 +857,33 @@ base*(1+growth)^i`. Removed the hand-set per-floor `diff` from `PROGRESSION.floo
   in normal play (0/20k deep rooms @40 enemies); `CENTER_CLEAR` doesn't over-reject rubble;
   `openDoor→openDoors`/`openExit` rename fully propagated; corridor fallback exact at
   `gridSize ≥ maxRooms`; `gridSize 17` inert for minimap (sizes from room bbox) and perf.
+
+## 2026-07-04 — adversarial review: boot-time LOW graphics tier (feat/graphics-low-preset, c8b80dc)
+
+- **The `on && GRAPHICS.shadows.enabled` AND-gate is what makes the low preset survive the
+  reducedEffects reconcile.** main.js merges `lowPreset` (shadows.enabled=false) BEFORE
+  createScene, then unconditionally calls `setShadowsEnabled(!reducedEffects)`. On a default
+  (reducedEffects=false) low-tier boot that's `setShadowsEnabled(true)`, but scene.js computes
+  `active = true && false = false`, so shadows stay off. Same pattern protects postfx: bloom/ao
+  are read at `build()` time (inside createScene, AFTER the merge), and `setEnabled(true)` only
+  flips a boolean — it never re-adds the bloom/AO passes. So low stays low regardless of the
+  accessibility toggle. The ordering (merge before scene build) is load-bearing and correct.
+- **`resolveGraphicsTier` precedence + regex are solid.** Explicit `?gfx=low|high` beats
+  auto-detect; garbage param (`?gfx=ultra`, `?gfx=`, whitespace, non-string) falls through to
+  detection; no-arg `resolveGraphicsTier()` returns 'high' without throwing (default `= {}`).
+  `isSoftwareRenderer` regex correctly keeps Intel Iris Xe / RTX / AMD / Apple / Adreno / Mali as
+  'high' and flags SwiftShader (every ANGLE wrapping) / llvmpipe / Mesa OffScreen / Microsoft
+  Basic Render Driver as 'low'. Verified with a standalone node regex harness (14 strings).
+- **Two LATENT (not live) deep-merge gaps in `applyGraphicsPreset`, worth a guard if presets ever
+  grow:** (1) no `__proto__`/`constructor`/`prototype` key filter — harmless today (trusted config,
+  no such key) but a string key `"__proto__"` would recurse into `Object.prototype`. (2) A nested
+  preset block whose key is ABSENT on target is assigned BY REFERENCE (aliases lowPreset), so a
+  later runtime mutation of that GRAPHICS sub-object would also mutate lowPreset. Neither fires with
+  the current config (all low-preset nested keys already exist on GRAPHICS). **Both since hardened**
+  anyway: CodeQL independently flagged (1) as prototype-polluting (required-check), so the merge now
+  skips `__proto__`/`constructor`/`prototype` keys and CLONES nested blocks absent on target (fixes
+  (2)) — with tests proving `Object.prototype` stays clean and a new nested block isn't aliased.
+- **Render-only, determinism untouched (ADR-0013):** grepped the diff — zero rng/random/seed refs.
+  `probeRendererString` never throws (try/catch + `?.loseContext()`), frees its context, and returns
+  '' when the debug_renderer_info ext is unavailable → tier stays 'high' (safe default: never wrongly
+  downgrades a real player). Verified: 387 tests pass, lint clean, build clean.
