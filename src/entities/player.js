@@ -626,6 +626,7 @@ export class Player {
       weaponExplosive: !!def.explosive || w.explodeRadius > 0,
       weaponFast: (def.cooldown ?? 1) <= OFFERS.fastWeaponCd,
       auraLevel: this._auraLevel, // CP-B: gate the Blade Aura pick once it hits max level
+      guardCharges: this.guardCharges, // CP-B: gate armor picks once plates are maxed (no dead cards)
       ownedCount: this.slots.length,
       luck: this._up.luck, // in-run positive dial (the engine clamps it)
       permLuck: this._baseline.luck, // CP4: permanent Fortune luck → the D2 offer curve
@@ -670,8 +671,8 @@ export class Player {
       case 'heal':
         this.hearts = Math.min(this.maxHearts, this.hearts + e.amount);
         break;
-      case 'guard':
-        this.guardCharges += e.charges;
+      case 'guard': // CP-B: armor plates are hard-capped so the HUD count is never a lie ("3 max")
+        this.guardCharges = Math.min(GUARD.maxCharges, this.guardCharges + e.charges);
         break;
       case 'bladeAura': // CP-B: stack the passive blade aura, capped at its max level
         this._auraLevel = Math.min(e.maxStacks ?? Infinity, this._auraLevel + e.add);

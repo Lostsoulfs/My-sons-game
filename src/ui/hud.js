@@ -4,18 +4,19 @@
 // red blood-splatter flash.
 // =====================================================================
 
-import { MINIMAP } from '../config.js';
+import { MINIMAP, GUARD } from '../config.js';
 import { settings } from '../systems/settings.js';
 
 const $ = (id) => document.getElementById(id);
 
 let _toastTimer = null;
 
-// CP-B: guard charges render as ATOMIC ARMOR plates trailing the hearts — visually capped at 3 (the
-// ultra Exo-Armor grants exactly 3). Each hit strips a plate before a heart (core/defense.js), so the
-// plate popping off IS the block cue. `armor` defaults to 0 so old callers keep working.
+// CP-B: guard charges render as ATOMIC ARMOR plates trailing the hearts. Charges are hard-capped at
+// GUARD.maxCharges (config), so the plate count is always the TRUTH — no hidden armor. Each hit strips
+// a plate before a heart (core/defense.js), so the plate popping off IS the block cue. `armor` defaults
+// to 0 so old callers keep working.
 const platesFor = (armor) => {
-  const p = Math.min(3, Math.max(0, Math.floor(armor || 0)));
+  const p = Math.min(GUARD.maxCharges, Math.max(0, Math.floor(armor || 0)));
   return p ? ' ' + '🛡️'.repeat(p) : '';
 };
 

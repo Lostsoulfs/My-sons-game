@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { makeRng } from '../src/core/rng.js';
 import { generateOffer, pityFloorTier } from '../src/core/offers.js';
 import { chiSquare } from '../src/core/probability.js';
-import { OFFERS } from '../src/config.js';
+import { OFFERS, GUARD } from '../src/config.js';
 
 // B9a — the room-clear offer generator. Pure + seeded, so every property below is reproducible.
 
@@ -192,6 +192,14 @@ describe('ADR-0030 weapon-aware gating', () => {
     for (let i = 0; i < 2000; i++) {
       const cards = generateOffer(rng, { auraLevel: 3 }); // BLADE_AURA.maxLevel
       expect(cards.some((c) => c.id === 'BLADE_AURA')).toBe(false);
+    }
+  });
+
+  it('armor cards (Guard / Greater Guard) stop being offered at max plates (CP-B)', () => {
+    const rng = makeRng(11);
+    for (let i = 0; i < 2000; i++) {
+      const cards = generateOffer(rng, { guardCharges: GUARD.maxCharges });
+      expect(cards.some((c) => c.id === 'GUARD' || c.id === 'GREATER_GUARD')).toBe(false);
     }
   });
 });

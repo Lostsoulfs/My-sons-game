@@ -41,10 +41,14 @@ CP-B):
 - Item **names** reskinned: `GUARD` → "Atomic Plating", `GREATER_GUARD` → "Powered Exo-Armor",
   Aegis meta node desc → "+1 armor plate". IDs and the effect blurb ("Block the next hit") are
   **stable** (saves + `tests/items.test.js` depend on them).
-- `hud.setHearts` / `setHearts2` now render `guardCharges` as 🛡️ armor plates trailing the hearts,
-  **visually capped at 3**. Each hit strips a plate before a heart, so the plate popping off _is_ the
-  block cue. The pause-menu stats panel (`core/statsPanel.js`) relabels "Guard" → "Armor" and adds a
-  "Blade aura" row.
+- `hud.setHearts` / `setHearts2` now render `guardCharges` as 🛡️ armor plates trailing the hearts.
+  Each hit strips a plate before a heart, so the plate popping off _is_ the block cue. The pause-menu
+  stats panel (`core/statsPanel.js`) relabels "Guard" → "Armor" and adds a "Blade aura" row.
+- **Charges are HARD-capped at `GUARD.maxCharges` (3)** — not just visually. Before CP-B, `guardCharges`
+  was unbounded (Aegis +2, Guard +1, Greater Guard +3 could reach 6); the visual cap would then _hide_
+  real armor and read as a lie. Now the apply path clamps to the cap, `core/offers.js` withholds both
+  armor picks once you're full (no dead cards), and the HUD reads the same `GUARD.maxCharges`. This
+  makes Scott's "3 max" literally true and the plate count always the truth.
 
 ## Consequences
 

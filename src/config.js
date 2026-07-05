@@ -1375,6 +1375,8 @@ export const BLADE_AURA = {
 export const GUARD = {
   rareCharges: 1, // "Atomic Plating" (rare) = block the next hit
   ultraCharges: 3, // "Powered Exo-Armor" (ultra, very rare) = block the next 3 hits
+  maxCharges: 3, // CP-B: HARD cap ("3 max" armor) — charges never exceed this, so the 🛡️ plate count
+  // over the hearts is always the TRUTH (no hidden armor). Single source for the mechanic + HUD cap.
   // feedback when a charge BLOCKS a hit — a distinct, lighter cue (no blood / music duck / heart loss)
   block: {
     sparkCount: 8,

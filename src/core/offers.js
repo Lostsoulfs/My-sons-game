@@ -9,7 +9,7 @@
 // disturbs the B8 ground-drop rarity engine (core/drops.js / config.PICKUPS.rarity).
 // =====================================================================
 
-import { OFFERS } from '../config.js';
+import { OFFERS, GUARD } from '../config.js';
 import { TIERS, itemsByTier, blurbFor, itemById } from './items.js';
 import { weightedChoice } from './weighted.js';
 import { goodDropMultiplier } from './luck.js';
@@ -159,6 +159,12 @@ function buildGates(ctx) {
   // maxStacks gate — the cap lives on the item effect so this module needn't import config).
   const ba = itemById('BLADE_AURA');
   if (ba && (ctx.auraLevel ?? 0) >= (ba.effect.maxStacks ?? Infinity)) blocked.add('BLADE_AURA');
+  // CP-B: armor plates are hard-capped at GUARD.maxCharges, so once you're full both armor picks are
+  // dead cards — withhold them (a maxed Greater Guard also blocks the lesser Guard, and vice-versa).
+  if ((ctx.guardCharges ?? 0) >= GUARD.maxCharges) {
+    blocked.add('GUARD');
+    blocked.add('GREATER_GUARD');
+  }
   const luck = Math.max(0, Math.min(ctx.luck ?? 0, OFFERS.luck.maxStacks));
   if (luck >= OFFERS.luck.maxStacks) blocked.add('LUCK_UP');
   // CP4: the flat global-damage reward is a dead card once maxed (cap lives on the item effect).

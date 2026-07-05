@@ -1110,3 +1110,9 @@ heatPerShot − coolRate·cooldown ≤ 0`, `dutyEnergy` returns 1 — i.e. no do
 - **Reskin in fiction, keep IDs + effect blurbs stable.** Guard → "Atomic Plating"/"Powered Exo-Armor"
   changed only item `name` + the stats-panel label + the visible 🛡️ plates. IDs (`GUARD`/`GREATER_GUARD`)
   and the `blurbFor` output ("Block the next hit") stay — saves and `tests/items.test.js` lock them.
+- **Making a hidden stat VISIBLE can expose a pre-existing lie.** `guardCharges` was unbounded before
+  CP-B (Aegis +2 / Guard +1 / Greater Guard +3 → up to 6) — invisible, so nobody noticed. The moment
+  the HUD caps plates at 3, a player with 5 charges sees 3 and carries 2 hidden. Fix was to cap the
+  MECHANIC too (`GUARD.maxCharges`, clamp on apply) + gate both armor offers at max, so the plate count
+  is always the truth. Lesson: when you surface a value on the HUD, audit whether the underlying field
+  is actually bounded to what you're drawing — a visual cap on an unbounded field reads as a bug.
