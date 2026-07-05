@@ -3,24 +3,23 @@ import { makeRng } from '../src/core/rng.js';
 import { rollDrop, pityMinTier } from '../src/core/drops.js';
 import { PICKUPS } from '../src/config.js';
 
-// B8 — hard pity (research report (4) anti-frustration rule): a run can't go "mean" — after a dry
-// streak of commons the next normal drop is forced rare+. Pure + seeded, so it's provable.
+// CP3 (ADR-0036): the rarity pyramid is deliberately HARSH — dry-streak pity is DISABLED
+// (`PICKUPS.rarity.pityEnabled === false`). A run CAN go all-common; there is no anti-frustration
+// safety net. What stays: `rollDrop` still honors an EXPLICIT `minTier` floor — the mechanism the
+// boss chest (`bossChestWeights`, no commons) uses to always pay a weapon.
 
 const R = PICKUPS.rarity;
-const { commonStreakMax, minTier } = R.hardPity;
+const { minTier } = R.hardPity;
 
-describe('pityMinTier (the floor decision)', () => {
-  it('returns no floor below the streak cap', () => {
-    for (let s = 0; s < commonStreakMax; s++) expect(pityMinTier(s)).toBeNull();
-  });
-
-  it('forces the configured minTier at/above the cap', () => {
-    expect(pityMinTier(commonStreakMax)).toBe(minTier);
-    expect(pityMinTier(commonStreakMax + 5)).toBe(minTier);
+describe('pityMinTier — dry-streak pity is DISABLED (harsh economy, ADR-0036)', () => {
+  it('returns no floor at any streak length, even far past the old cap', () => {
+    for (const s of [0, 1, R.hardPity.commonStreakMax, R.hardPity.commonStreakMax + 50]) {
+      expect(pityMinTier(s)).toBeNull();
+    }
   });
 });
 
-describe('rollDrop honors the pity floor', () => {
+describe('rollDrop still honors an explicit floor (the boss-chest rare+ mechanism)', () => {
   it('with minTier set, never rolls below it — even on a common-heavy weight table', () => {
     const rng = makeRng(123);
     const commonHeavy = { common: 1000, rare: 1, epic: 1 }; // would almost always roll common
@@ -31,27 +30,22 @@ describe('rollDrop honors the pity floor', () => {
   });
 });
 
-describe('the streak loop guarantees a rare+ within commonStreakMax+1 drops', () => {
-  it('mirrors game.js: a forced drop lands no later than the cap, then the streak resets', () => {
+describe('a dry run has NO safety net (pity never forces a rare+)', () => {
+  it('mirrors game.js: the common streak is free to grow unbounded — no forced draw', () => {
     const rng = makeRng(2026);
     const weights = R.regularChestWeights[0]; // early floor — the most common-heavy band
     let streak = 0;
-    let everForced = false;
+    let maxStreak = 0;
 
     for (let i = 0; i < 200; i++) {
-      const floor = pityMinTier(streak); // game.js passes this as minTier
+      const floor = pityMinTier(streak); // game.js passes this as minTier — now always null
+      expect(floor).toBeNull();
       const drop = rollDrop(rng, weights, { minTier: floor });
-      if (floor) {
-        // a pity-forced draw must be rare+ and must reset the dry streak
-        expect(drop.tier).not.toBe('common');
-        everForced = true;
-      }
-      // game.js streak update: a common extends the streak, anything rarer resets it
       streak = drop.tier === R.tiers[0] ? streak + 1 : 0;
-      // the streak can never exceed the cap (pity fires the moment it reaches it)
-      expect(streak).toBeLessThanOrEqual(commonStreakMax);
+      maxStreak = Math.max(maxStreak, streak);
     }
 
-    expect(everForced).toBe(true); // over 200 draws the dry-streak guard definitely triggers
+    // with pity off and a ~75% common band, a dry streak longer than the old cap WILL occur
+    expect(maxStreak).toBeGreaterThan(R.hardPity.commonStreakMax);
   });
 });

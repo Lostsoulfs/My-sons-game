@@ -41,3 +41,4 @@ below).
 | [0033](0033-boss-arrivals.md)                      | Boss arrivals — entry-opposite spawn, BOSS_INTRO cinematic, human approach | Proposed |
 | [0034](0034-adaptive-graphics-quality.md)          | Adaptive graphics quality — measure FPS, auto-downgrade weak machines      | Proposed |
 | [0035](0035-weapon-reload-overheat.md)             | Weapon downside — reload (ballistic) + overheat (energy)                   | Proposed |
+| [0036](0036-weapon-power-budget-rarity.md)         | Weapon power-budget model — rarity ≈ power, strict pyramid, no pity        | Proposed |
