@@ -94,12 +94,15 @@ export function powerScore(w, limit) {
   );
 }
 
-/** the tier whose band contains `score` (bands are [lo, hi); highest wins on the open top band). */
+/** the tier whose band contains `score` (bands are [lo, hi); the top band's hi is Infinity so a
+ *  legitimately huge finite score matches it directly). A score that matches NO band — negative,
+ *  NaN, or ±Infinity from a broken factor — clamps to the BOTTOM tier: failing SAFE (least
+ *  permissive) makes a bad score surface as a failed roster assertion instead of a silent 'ultra'. */
 export function tierForScore(score) {
-  let best = null;
+  const bottomTier = Object.keys(TIER_BANDS)[0]; // TIER_BANDS is authored ascending (common → ultra)
+  if (!Number.isFinite(score)) return bottomTier;
   for (const [tier, [lo, hi]] of Object.entries(TIER_BANDS)) {
-    if (score >= lo && score < hi) best = tier;
+    if (score >= lo && score < hi) return tier;
   }
-  // above every finite band → the top (ultra) band, whose hi is Infinity
-  return best ?? Object.keys(TIER_BANDS).find((t) => TIER_BANDS[t][1] === Infinity) ?? null;
+  return bottomTier; // below the lowest band → clamp low, never up to the open top band
 }
