@@ -1000,3 +1000,37 @@ camProg` from the nearest player's DISTANCE to him (smoothstep over `camFocusFro
   event-driven (room changes). So `hud.setLimiter(player.limiterHud())` is called from `render()` each
   frame (guarded by `if (this.player)` for the pre-run menu). Cheap: one element, textContent + a class.
   10 new pure tests (reload/heat); 406 total; lint/format/build green.
+
+## CP3 — weapon power-budget model (rarity ≈ power), 2026-07-05 (ADR-0036)
+
+- **A power scalar makes rarity honest, but a sustained-DPS model structurally UNDERvalues burst.**
+  `PowerScore = burstDPS · dutyCycle · accuracy · range · scenario · alpha`. Scoring the roster
+  immediately exposed the design lie (Browning epic was #1; Davy nuke ultra scored below commons).
+  The sustained model buried the tactical nuke because its value is _alpha strike_ (delete a cluster
+  in one shot), not DPS. Fix: an explicit `alphaFactor`, **AoE-only** (a pierce line is already
+  credited via the crowd scenario), with **uncapped** blast reach so a room-nuke (r8) dwarfs a small
+  blast. That scored the nuke as a true ultra WITHOUT cranking damage into one-shot territory.
+- **Scoring surfaced a hidden CP2 balance bug: most energy guns never overheated.** With `net =
+heatPerShot − coolRate·cooldown ≤ 0`, `dutyEnergy` returns 1 — i.e. no downside at all, while every
+  ballistic gun reloads. So a `common` laser out-scored rares purely because it had no cost. The power
+  model wouldn't have caught this if it didn't share the SAME `WEAPON_LIMITS` the live mechanic uses —
+  the number you score has to be the number you feel. Re-solved every energy `heatPerShot` from a target
+  duty (closed-form inverse of `dutyEnergy`) so they actually bite.
+- **Score at the REAL cadence, not the nominal cooldown.** Two bugs bit: a full `charge` fires on
+  charge-time + cooldown (~0.92 s), not its 0.12 s base cooldown (it was scoring ~8× too high); a
+  `spinUp` minigun must be valued at its wound-up END cadence, not its slow start (~22 DPS, not 7).
+  `effectiveCooldown` is the one place that encodes this, used by both `burstDPS` and the duty calc.
+- **Ultra is offer-only RARITY, but still gate it to top POWER.** minigun + Davy are absent from the
+  drop table (offer-only), yet the test asserts both out-score every epic — so "ultra" can't become a
+  dumping ground for weak-but-flashy guns. The minigun keeps a real (lenient, ~13 s) overheat per the
+  owner's "rapid/nuke guns need a cooldown" and _still_ tops the chart.
+- **Build the tuning as a scratch harness that reads real config.** A `tune.mjs` that imported the
+  actual `WEAPONS`/`WEAPON_LIMITS`/`powerScore`, printed target-vs-actual tier + flagged band
+  violations, and solved heat params for a target duty turned ~6 hand-algebra iterations into fast
+  numeric loops. The golden `weaponEconomy.test.js` then freezes the result: every gun in-band, 8/7/5/2
+  counts, medians strictly increase, every gun has a downside, ultra offer-only. 437 tests; gate green.
+- **Removing pity is a real behavior change → update the pity tests to the NEW contract, don't delete
+  coverage.** Disabled dry-streak pity behind `pityEnabled:false` (harsh, by request) but KEPT the boss
+  rare+ floor (separate mechanism) and the explicit-`minTier` flooring in `rollDrop`. The rewritten
+  `pity.test.js`/`offers.proof.test.js` now assert "pity returns null at any streak" + "a dry run has no
+  safety net" + "boss floor still works" — coverage moved with the design, it didn't shrink.

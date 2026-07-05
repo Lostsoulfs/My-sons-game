@@ -43,8 +43,15 @@ export function rarityBand(floorIndex) {
 /**
  * Hard pity: once `commonStreak` consecutive common drops have been drawn, return the forced floor
  * tier (`minTier`); otherwise null (no floor). PURE — the streak itself is tracked by the caller.
+ * CP3 (ADR-0036): disabled by default (`RARITY.pityEnabled === false`) — the rarity pyramid is
+ * deliberately HARSH with no dry-streak safety net; the helper stays behind the flag for future use.
+ * NOTE: since the ADR-0030 "no ground weapon drops" move, this whole tier-weight engine (rollDrop /
+ * regularChestWeights / bossChestWeights) is DORMANT — acquisition is via the room-clear OFFER
+ * (core/offers.js), so these are test-only today. The LIVE boss rare+ guarantee is the `bossTier`
+ * floor in core/offers.js (generateOffer), separate from pity, and it stays.
  */
 export function pityMinTier(commonStreak) {
+  if (!RARITY.pityEnabled) return null;
   return commonStreak >= RARITY.hardPity.commonStreakMax ? RARITY.hardPity.minTier : null;
 }
 
