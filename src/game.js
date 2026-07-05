@@ -303,11 +303,12 @@ export class Game {
       return;
     }
 
-    // HEAL room (v1 special): a breather, not a fight — pre-cleared, no offer,
-    // one guaranteed HEAL waiting mid-room (Phase 6b adds more special types here).
+    // Special room (interim breather): pre-cleared, no offer, one guaranteed +1 HEART mid-room.
+    // Hearts are +1 everywhere except a rare +2 from bosses (Scott's rule). NEXT: this becomes a
+    // "choice room" with random survivors + a pick (and a shop seam later) — see docs/plans.
     if (node.type === 'heal') {
       node.cleared = true;
-      this.spawnPickup('HEAL', 0, 0);
+      this.spawnPickup('HEART', 0, 0);
       this.room.openDoors();
       this.state = State.ROOM_CLEAR;
       hud.hideBanner();
@@ -729,6 +730,7 @@ export class Game {
       revealed: false,
       ending: false, // set true when a SKIP starts the eased pull-back (see _updateBossIntro)
       focus: { x: boss.x, z: boss.z },
+      faceY: boss.mesh.rotation.y, // the boss faces the ENTRY — orbit the intro cam to its front (not its back)
       names: this.bosses.map((b) => b.name).join(' & '),
       subtitle: boss.title || '',
       desc,
@@ -978,13 +980,27 @@ export class Game {
    * FRONT (not its top). `p` (0..1) drives the ease; `cfg.camZoom` pulls the distance in. Shared
    * by the boss entrance (low hero angle) and the human walk-up (gentler framing).
    */
-  _focusCam(fx, fz, p, sh, pan, cfg) {
+  _focusCam(fx, fz, p, sh, pan, cfg, faceY = null) {
     const lx = pan.x + (fx - pan.x) * p;
     const lz = pan.z + (fz - pan.z) * p;
     const camY = this.baseCam.y + (cfg.camHeight - this.baseCam.y) * p;
     const bk = this.baseCam.z * (1 - p * cfg.camZoom);
     const lookY = CAMERA.lookAtY + (cfg.lookAtY - CAMERA.lookAtY) * p;
-    this.camera.position.set(lx + sh.x, camY + sh.y, lz + bk + sh.z);
+    // Orbit the camera from the default south (+z) framing around to the SUBJECT'S FRONT as we push in.
+    // The boss/human faces the ENTRY, which is N/E/W for most rooms, so a fixed-south camera ends on
+    // its back or side ("the spider's ass"). faceY = subject mesh.rotation.y; blend the offset ANGLE
+    // 0→faceY along the SHORTEST arc (so it swings around the side, never over the top).
+    let ox = 0;
+    let oz = 1; // default: straight behind (+z)
+    if (faceY != null) {
+      let d = faceY;
+      while (d > Math.PI) d -= 2 * Math.PI;
+      while (d < -Math.PI) d += 2 * Math.PI;
+      const a = d * p; // p=0 → 0 (south framing);  p=1 → the subject's facing angle (its front)
+      ox = Math.sin(a);
+      oz = Math.cos(a);
+    }
+    this.camera.position.set(lx + ox * bk + sh.x, camY + sh.y, lz + oz * bk + sh.z);
     this.camera.lookAt(lx, lookY, lz);
   }
 
@@ -999,18 +1015,35 @@ export class Game {
     const ap = this._approach;
     if (intro && intro.camProg > 0) {
       // ADR-0033 boss entrance, CP1 low hero-angle: push in on the boss's FRONT (not its scalp).
-      this._focusCam(intro.focus.x, intro.focus.z, intro.camProg, sh, pan, {
-        camZoom: BOSS_INTRO.camZoom,
-        camHeight: BOSS_INTRO.introCamHeight,
-        lookAtY: BOSS_INTRO.introLookAtY,
-      });
+      this._focusCam(
+        intro.focus.x,
+        intro.focus.z,
+        intro.camProg,
+        sh,
+        pan,
+        {
+          camZoom: BOSS_INTRO.camZoom,
+          camHeight: BOSS_INTRO.introCamHeight,
+          lookAtY: BOSS_INTRO.introLookAtY,
+        },
+        intro.faceY,
+      );
     } else if (ap && ap.camProg > 0 && ap.boss) {
-      // CP1 human walk-up: ease a framed focus onto the survivor as you approach (gentler framing).
-      this._focusCam(ap.boss.x, ap.boss.z, ap.camProg, sh, pan, {
-        camZoom: HUMAN_APPROACH.camZoom,
-        camHeight: HUMAN_APPROACH.camHeight,
-        lookAtY: HUMAN_APPROACH.camLookAtY,
-      });
+      // CP1 human walk-up: ease a framed focus onto the survivor as you approach (gentler framing),
+      // orbiting to the survivor's FRONT so you meet their face — same fix as the boss entrance.
+      this._focusCam(
+        ap.boss.x,
+        ap.boss.z,
+        ap.camProg,
+        sh,
+        pan,
+        {
+          camZoom: HUMAN_APPROACH.camZoom,
+          camHeight: HUMAN_APPROACH.camHeight,
+          lookAtY: HUMAN_APPROACH.camLookAtY,
+        },
+        ap.boss.mesh?.rotation.y ?? null,
+      );
     } else {
       this.camera.position.set(
         this.baseCam.x + pan.x + sh.x,
