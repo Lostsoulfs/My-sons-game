@@ -5,9 +5,9 @@
 //   BOOT -> (start menu) -> PLAYING -> ROOM_CLEAR -> ... -> WIN
 //                                  \-> DEAD (out of lives -> start over)
 //
-// Single-player: you (blue) + an AI ally (green). Co-op: P1 = you (keyboard,
-// blue), P2 = the ally (Xbox controller, green). In co-op a downed player
-// revives when the room is cleared; Game Over only on a full wipe.
+// Single-player (CP5/ADR-0038): SOLO as the chosen character — Dad (blue, ballistic) or Son (green,
+// energy), no AI ally. Co-op: P1 = Dad (keyboard, blue), P2 = Son (Xbox controller, green) — both are
+// full Players. In co-op a downed player revives when the room is cleared; Game Over only on a full wipe.
 // =====================================================================
 
 import {
@@ -140,8 +140,15 @@ export class Game {
 
   startRun(coop = false, character = 'dad', seed = (Math.random() * 1e9) | 0) {
     this.coop = coop;
-    // Seed defaults to random per run; pass a fixed seed to make a run
-    // reproducible (e.g. window.__game.startRun(false, 'dad', 12345)) — ADR-0013.
+    // CP5 inserted `character` as arg 2, pushing the ADR-0013 seed to arg 3. Stay backward-compatible
+    // with the old 2-arg seeded form: a NUMERIC 2nd arg is read as the seed (so a pasted/old-habit
+    // `startRun(false, 12345)` still pins the run instead of silently going random). — ADR-0013/0038.
+    if (typeof character === 'number') {
+      seed = character;
+      character = 'dad';
+    }
+    // Seed defaults to random per run; pass a fixed seed to make a run reproducible:
+    //   window.__game.startRun(false, 'dad', 12345)  (or the back-compat window.__game.startRun(false, 12345))
     this.rng = makeRng(seed);
     this.lives = CAPS.lives.start;
     this.checkpointFloor = 0;
@@ -626,7 +633,7 @@ export class Game {
       }
     }
     this.state = State.OFFER;
-    this.input.consumeRestart(); // drop any stray R (the offer reuses R for the ally reroll)
+    this.input.consumeRestart(); // drop any stray restart-R so entering OFFER doesn't carry a queued restart
     this._presentNextOffer();
   }
 
@@ -666,7 +673,7 @@ export class Game {
     if (this._node().type === 'boss') this.room.openExit(); // post-offer boss room: the way down opens
     audio.play('doorOpen');
     this.state = State.ROOM_CLEAR;
-    this.input.consumeRestart(); // drain any reroll-R before ROOM_CLEAR / DEAD can read it
+    this.input.consumeRestart(); // drain any stray restart-R before ROOM_CLEAR / DEAD can consume it
     prompts.hide();
     hud.banner('ROOM CLEAR — EXPLORE!');
   }

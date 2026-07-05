@@ -136,7 +136,8 @@ Referenced by the Working Agreement (`AGENTS.md` #2).
   decoupled loop (`core/loop.js`). The genuine gaps were (a) no way to pin a
   run's seed and (b) no cross-system determinism check.
 - Added: optional `seed` on `startRun` (default unchanged) so a run is replayable
-  via `window.__game.startRun(false, N)`; and `tests/determinism.test.js` driving
+  via `window.__game.startRun(false, 'dad', N)` (CP5 moved the seed to arg 3; a numeric arg 2 is still
+  accepted as the seed); and `tests/determinism.test.js` driving
   the real pure rng seams (`dropRandomPickup`, `resolveDecision`, spawn rolls)
   through one shared rng. `populateRoom` is render-coupled (builds Enemy/Boss/Npc
   with the scene), so the full `Game` step stays out of the headless test — the
@@ -659,7 +660,7 @@ base*(1+growth)^i`. Removed the hand-set per-floor `diff` from `PROGRESSION.floo
   unconditionally at mesh creation (one line in the `Enemy`/`Boss` ctors + `makeCharacter`) — no need
   to thread the config flag through every mesh site. The master switch lives on the renderer + key
   light. Traversing the entity root covers GLB sub-meshes in one call.
-- **Headless shadow verification:** drive the game past the menu with `window.__game.startRun(seed)` +
+- **Headless shadow verification:** drive the game past the menu with `window.__game.startRun(false, 'dad', seed)` +
   `loadRoom(9)` (floor-1 boss room), then **hide the `#startmenu` DOM overlay** (`startRun` loads the
   room underneath but doesn't dismiss the menu) before screenshotting — otherwise you shoot the menu,
   not the game. `normalBias 0.02` + `bias -0.0005` gave clean soft shadows (no acne/peter-panning).

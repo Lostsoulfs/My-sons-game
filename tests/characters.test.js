@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { CHARACTERS, WEAPONS, WEAPON_LIMITS, PALETTE } from '../src/config.js';
+import { CHARACTERS, WEAPONS, WEAPON_LIMITS } from '../src/config.js';
 
 // CP5 (ADR-0038): the two playable characters. Dad/Son differ by STARTER weapon (which carries the
 // ballistic-vs-energy flavor for free via CP2 WEAPON_LIMITS) plus a small +/− trait. This locks the
@@ -27,10 +27,17 @@ describe('CHARACTERS config', () => {
     expect(WEAPON_LIMITS.laserpistol.heat).toBeDefined(); // energy → overheat
   });
 
-  it('Dad reads blue and Son reads green (distinct silhouettes)', () => {
-    expect(CHARACTERS.dad.color).toBe(PALETTE.player);
-    expect(CHARACTERS.son.color).toBe(PALETTE.ally);
+  it('the two characters read as DISTINCT silhouettes (different colors + models)', () => {
+    // (not `=== PALETTE.player`: the config assigns from PALETTE, so that would be circular.) The
+    // invariant that actually matters is that Dad and Son are visually tellable apart.
     expect(CHARACTERS.dad.color).not.toBe(CHARACTERS.son.color);
+    expect(CHARACTERS.dad.modelKey).not.toBe(CHARACTERS.son.modelKey);
+    // Dad's blue is more blue than red; Son's green is more green than red — a sanity check on hue.
+    const blue = (c) => c & 0xff;
+    const green = (c) => (c >> 8) & 0xff;
+    const red = (c) => (c >> 16) & 0xff;
+    expect(blue(CHARACTERS.dad.color)).toBeGreaterThan(red(CHARACTERS.dad.color));
+    expect(green(CHARACTERS.son.color)).toBeGreaterThan(red(CHARACTERS.son.color));
   });
 
   it('traits are small, sane baseline nudges (|value| ≤ 0.5, known stat keys)', () => {

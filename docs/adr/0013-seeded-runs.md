@@ -30,7 +30,8 @@ are.
 
 ## Consequences
 
-- Bugs can be reproduced by pinning a seed (`window.__game.startRun(false, N)`).
+- Bugs can be reproduced by pinning a seed (`window.__game.startRun(false, 'dad', N)`; a numeric 2nd
+  arg is also accepted as the seed for back-compat — CP5/ADR-0038 inserted `character` before `seed`).
 - A regression that makes the run order- or state-dependent on something other
   than the seed fails the determinism test — deterministically, no flake.
 - The full `Game.update` path stays render-coupled and is not headless-tested;
