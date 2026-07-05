@@ -132,6 +132,9 @@ export class Game {
     return new Player(this.scene, {
       color: c.color,
       modelKey: c.modelKey,
+      meshRadius: c.meshRadius, // CP-D: visual-only silhouette (collision stays PLAYER.radius)
+      meshHeight: c.meshHeight,
+      prop: c.prop,
       device,
       baseline: merged,
       startWeapon: c.starter,

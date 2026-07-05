@@ -1138,3 +1138,34 @@ heatPerShot − coolRate·cooldown ≤ 0`, `dutyEnergy` returns 1 — i.e. no do
   `_checkPhaseFlips` across breakpoints — `attacks` is on `boss.behavior`, NOT the instance. Confirmed
   ragePhase 0→1→2 (enforcer) / clamped at 1 (mushroom), enemy bullets wiped on flip, spiral/flower
   fire without throwing. 480 tests; gate green.
+
+## 2026-07-05 — CP-D plumbing: a shared-key collision hiding in plain sight (ADR-0041)
+
+- **A "config key namespace" can hide a real bug.** `CHARACTERS.son.modelKey` was `'ally'` — the same
+  key `entities/ally.js` (dormant, future CP-C demon) uses. Nothing broke YET only because
+  `MODELS.ally` is still null; the moment either Son or the demon got a real GLB, they'd have silently
+  shared one asset. Renamed to distinct `'dad'`/`'son'` keys before any art was picked — cheaper to fix
+  as a plumbing pass than after a confusing "why does my demon look like Son" bug report.
+- **`radius` is dual-purpose in this codebase — visual size AND the real hit-circle** (true for
+  bosses too: `BOSS[type].radius` is both). A design panel's silhouette pitch (make Dad bigger, Son
+  smaller) would have silently changed 2P hitbox fairness if applied to `PLAYER.radius` directly.
+  Fix: a separate **visual-only** `meshRadius`/`meshHeight` per character, decoupled from
+  `this.radius` (which stays `PLAYER.radius` for both, always) — get the silhouette read with zero
+  balance risk. When a design ask touches a field that's secretly load-bearing elsewhere, split it
+  rather than overload it further.
+- **Follow the boss GLB pattern exactly, even where it wasn't used yet.** `player.js` had NO
+  animation support at all (just a static `makeCharacter` call) while 5 bosses already used
+  `loadAnimated`-first-then-procedural-fallback. Wiring player.js to the SAME pattern (try
+  `loadAnimated`, fall back to `makeCharacter`, drive Walk/Idle off movement, dispose the mixer on
+  teardown) means a future real GLB "just works" with animation — zero new architecture, and zero
+  visual change today since `MODELS.dad/son` are still null (verified: `hasAnim: false` live).
+- **A procedural "prop" (hat/goggles) is safest scoped to the fallback only.** Attaching it
+  unconditionally (even over a future real GLB) risks clipping on an unknown rig's scale/pose —
+  restrict it to the `no-model-loaded` branch and revisit once real art is chosen.
+- **When a design panel is split, don't let the majority silently decide for the owner.** Most personas
+  pitched recoloring Dad/Son to a warm/cool "weapon era" palette; one explicitly said "don't touch
+  it — it works." Since the existing blue/green is an identity from real play sessions, that's Scott's
+  call, not an auto-applied panel majority vote — captured as an explicit open question in the ADR
+  instead of quietly repainted.
+- 484 tests (4 new); gate green; live-verified via `window.__game` (distinct capsule radii, distinct
+  prop geometry/color, identical collision radius, `hasAnim:false` fallback) across solo + 2P.

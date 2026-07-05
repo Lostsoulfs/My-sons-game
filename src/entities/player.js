@@ -27,6 +27,8 @@ import { initClip, tickReload, fireRound, canFireClip } from '../core/reload.js'
 import { initHeat, coolHeat, addHeat, canFireHeat } from '../core/heat.js';
 import { resolveIncoming } from '../core/defense.js';
 import { makeCharacter } from './characterMesh.js';
+import { loadAnimated } from '../core/animModel.js';
+import { castShadows } from '../core/shadows.js';
 import { slideOutOfWalls, clampToArena } from '../systems/collision.js';
 import { spreadDirs, circleVsCircle, normalize } from '../core/math2d.js';
 import * as audio from '../systems/audio.js';
@@ -45,7 +47,10 @@ export class Player {
     scene,
     {
       color = PALETTE.player,
-      modelKey = 'player',
+      modelKey = 'dad',
+      meshRadius = PLAYER.radius, // CP-D: VISUAL-ONLY silhouette size — never the hit-circle below
+      meshHeight = PLAYER.height,
+      prop = null, // CP-D: procedural silhouette tell (see characterMesh.js PROP_BUILDERS)
       device = 'both',
       baseline = null,
       startWeapon = 'pistol', // CP5: per-character starter (Dad='pistol', Son='laserpistol')
@@ -55,13 +60,21 @@ export class Player {
     this.device = device; // 'kb' | 'pad' | 'both'
     this._startWeapon = startWeapon;
     this.character = character;
-    this.mesh = makeCharacter(modelKey, {
-      radius: PLAYER.radius,
-      height: PLAYER.height,
-      color,
-    });
+    // CP-D (ADR-0041): try a real animated GLB first (same loadAnimated-first pattern every boss
+    // uses), falling back to the procedural capsule+prop. `this.anim` drives Walk/Idle in update()
+    // and is null on the procedural path (no-op there). MODELS.dad/son are null today, so this is a
+    // no-op until real art lands — zero visual change now.
+    const built = loadAnimated(modelKey, meshHeight);
+    if (built) {
+      this.mesh = built.wrap;
+      this.anim = built.anim;
+      castShadows(this.mesh);
+    } else {
+      this.mesh = makeCharacter(modelKey, { radius: meshRadius, height: meshHeight, color, prop });
+      this.anim = null;
+    }
     scene.add(this.mesh);
-    this.radius = PLAYER.radius;
+    this.radius = PLAYER.radius; // the REAL hit-circle — identical for Dad/Son, unaffected by meshRadius
     this._baseColor = new THREE.Color(color);
     this.slotsUnlocked = 1; // grows as bosses are beaten (set by game)
     // permanent baseline stacks from the Echoes meta-layer (B10 / ADR-0029); all-zero pre-beat.
@@ -278,6 +291,13 @@ export class Player {
     this.x = p.x;
     this.z = p.z;
 
+    // CP-D: drive the GLB's Walk/Idle clip off actual movement (no-op on the procedural fallback —
+    // `this.anim` is only set when a real animated model loaded, see the constructor).
+    if (this.anim) {
+      this.anim.play(Math.hypot(m.x, m.z) > 0.05 ? 'Walk' : 'Idle');
+      this.anim.update(dt);
+    }
+
     // --- aim + shoot ---
     const aim = input.aim(this.device, camera, this.x, this.z);
     this.mesh.rotation.y = Math.atan2(aim.x, aim.z);
@@ -426,6 +446,11 @@ export class Player {
       }
       this._aura = null;
     }
+    // CP-D: free the GLB's AnimationMixer (no-op on the procedural fallback) — mirrors
+    // AnimModel.dispose()'s use across bosses (core/animModel.js) to avoid the same
+    // orphaned-mixer leak across room/run resets.
+    this.anim?.dispose();
+    this.anim = null;
   }
 
   // --- Charge Cannon: hold to charge, release a bigger/stronger cannonball ---

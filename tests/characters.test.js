@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { CHARACTERS, WEAPONS, WEAPON_LIMITS } from '../src/config.js';
+import { CHARACTERS, WEAPONS, WEAPON_LIMITS, PLAYER } from '../src/config.js';
 
 // CP5 (ADR-0038): the two playable characters. Dad/Son differ by STARTER weapon (which carries the
 // ballistic-vs-energy flavor for free via CP2 WEAPON_LIMITS) plus a small +/− trait. This locks the
@@ -48,5 +48,39 @@ describe('CHARACTERS config', () => {
         expect(Math.abs(v), `${key}.trait.${stat}`).toBeLessThanOrEqual(0.5);
       }
     }
+  });
+
+  // CP-D (ADR-0041): Son's modelKey used to BE 'ally' — the same key the dormant Ally class uses.
+  // Pointing a real GLB at 'ally' (for Son) would have silently reskinned the future CP-C demon
+  // companion too, since they'd share one asset slot. Lock that Son (and Dad) each own a DISTINCT
+  // key, and neither is the reserved 'ally' slot.
+  it("no character's modelKey collides with the reserved 'ally' (CP-C demon) slot", () => {
+    for (const [key, c] of Object.entries(CHARACTERS)) {
+      expect(c.modelKey, key).not.toBe('ally');
+    }
+  });
+
+  // CP-D: a visual-only silhouette differentiator (meshRadius/meshHeight/prop) — deliberately
+  // separate from PLAYER.radius, the real hit-circle, so 2P stays fair regardless of character.
+  it('meshRadius/meshHeight are VISUAL-ONLY and diverge per character; prop is set + distinct', () => {
+    for (const [key, c] of Object.entries(CHARACTERS)) {
+      expect(typeof c.meshRadius, key).toBe('number');
+      expect(typeof c.meshHeight, key).toBe('number');
+      expect(typeof c.prop, key).toBe('string');
+    }
+    expect(CHARACTERS.dad.meshRadius).not.toBe(CHARACTERS.son.meshRadius);
+    expect(CHARACTERS.dad.meshHeight).not.toBe(CHARACTERS.son.meshHeight);
+    expect(CHARACTERS.dad.prop).not.toBe(CHARACTERS.son.prop);
+    // Dad reads broad/planted; Son reads lean/quick (the panel's silhouette direction).
+    expect(CHARACTERS.dad.meshRadius).toBeGreaterThan(CHARACTERS.son.meshRadius);
+    expect(CHARACTERS.dad.meshHeight).toBeLessThan(CHARACTERS.son.meshHeight);
+  });
+
+  it('the collision hit-circle is IDENTICAL for both characters regardless of visual silhouette', () => {
+    // Fairness invariant: only PLAYER.radius (shared, global) drives the real hit-circle in
+    // player.js — meshRadius must never leak into it. Nothing in CHARACTERS should override it.
+    expect(CHARACTERS.dad.radius).toBeUndefined();
+    expect(CHARACTERS.son.radius).toBeUndefined();
+    expect(typeof PLAYER.radius).toBe('number');
   });
 });
