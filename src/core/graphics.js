@@ -68,8 +68,13 @@ export function applyGraphicsPreset(target, preset) {
   for (const key of Object.keys(preset)) {
     if (UNSAFE_KEYS.has(key)) continue; // never walk the prototype chain (prototype-pollution guard)
     const val = preset[key];
-    if (isPlainObject(val) && isPlainObject(target[key])) applyGraphicsPreset(target[key], val);
-    else target[key] = val;
+    if (isPlainObject(val)) {
+      // merge into the existing block, or CLONE into a fresh one — never alias the preset object
+      // (else a later GRAPHICS mutation, e.g. setShadowMapSize, would scribble on lowPreset)
+      target[key] = applyGraphicsPreset(isPlainObject(target[key]) ? target[key] : {}, val);
+    } else {
+      target[key] = val;
+    }
   }
   return target;
 }

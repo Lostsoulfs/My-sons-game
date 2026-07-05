@@ -139,6 +139,16 @@ describe('applyGraphicsPreset', () => {
     expect(target.pixelRatioCap).toBe(2);
   });
 
+  it('clones a nested preset block absent on target instead of aliasing it', () => {
+    const preset = { newBlock: { a: 1 } };
+    const target = {};
+    applyGraphicsPreset(target, preset);
+    expect(target.newBlock).toEqual({ a: 1 });
+    expect(target.newBlock).not.toBe(preset.newBlock); // cloned, not shared
+    target.newBlock.a = 999; // a later GRAPHICS mutation must NOT scribble on the preset
+    expect(preset.newBlock.a).toBe(1);
+  });
+
   it('does not pollute the prototype chain via __proto__ / constructor keys', () => {
     // a malicious preset shaped to walk the prototype chain must be ignored
     const evil = JSON.parse('{"__proto__": {"pwned": true}, "constructor": {"x": 1}}');
