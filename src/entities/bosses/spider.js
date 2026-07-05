@@ -23,6 +23,7 @@ function fireRing(boss, game) {
 
 export const spider = {
   name: 'The Spider',
+  title: 'Warden of the Outskirts',
   roar: 'bossRoar',
 
   buildMesh(boss, palette) {

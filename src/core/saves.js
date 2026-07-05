@@ -19,6 +19,7 @@ const DEFAULTS = () => ({
   gameBeaten: false,
   upgrades: {},
   stats: { runs: 0, wins: 0, bestFloor: 0, bossesBeaten: 0 },
+  seenBosses: [], // boss keys whose entrance cinematic you've watched (ADR-0033 skip-after-seen)
 });
 
 // ---- pure helpers (unit-tested, imported by tests/saves.test.js) ----
@@ -123,12 +124,18 @@ export function normalizeSave(raw) {
     bossesBeaten: fi(rs.bossesBeaten),
   };
 
+  // seen-boss keys: keep only non-empty strings, de-duped (hand-edited blobs stay safe)
+  const seenBosses = Array.isArray(raw.seenBosses)
+    ? [...new Set(raw.seenBosses.filter((k) => typeof k === 'string' && k))]
+    : [];
+
   return {
     v: 1,
     echoes: Number.isFinite(echoes) ? Math.max(0, Math.floor(echoes)) : 0,
     gameBeaten,
     upgrades,
     stats,
+    seenBosses,
   };
 }
 
@@ -215,6 +222,18 @@ class Save {
       echoes: this._v.echoes + echoes,
       stats: { ...this._v.stats, bossesBeaten: this._v.stats.bossesBeaten + 1 },
     };
+    this._save();
+  }
+
+  /** Has the player already watched this boss's entrance cinematic? (ADR-0033 skip-after-seen) */
+  hasSeenBoss(key) {
+    return this._v.seenBosses.includes(key);
+  }
+
+  /** Record that this boss's entrance has now been seen (so later encounters can skip it). */
+  recordBossSeen(key) {
+    if (!key || this._v.seenBosses.includes(key)) return;
+    this._v = { ...this._v, seenBosses: [...this._v.seenBosses, key] };
     this._save();
   }
 

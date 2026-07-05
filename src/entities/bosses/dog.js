@@ -56,6 +56,7 @@ function paintLane(boss, game) {
 
 export const dog = {
   name: 'Fang',
+  title: 'Wardens of the Kennels',
   roar: 'bossRoar',
 
   buildMesh(boss, palette) {

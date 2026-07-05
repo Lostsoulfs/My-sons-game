@@ -36,6 +36,7 @@ function fireCrossSwipe(boss, game) {
 
 export const cat = {
   name: 'Whisker',
+  title: 'Wardens of the Kennels',
   roar: 'bossRoar',
 
   buildMesh(boss, palette) {

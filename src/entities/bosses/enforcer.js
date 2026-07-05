@@ -27,6 +27,7 @@ function fireBarrage(boss, game) {
 
 export const enforcer = {
   name: 'The Enforcer',
+  title: 'Government War-Machine',
   roar: 'bossRoar',
 
   buildMesh(boss, palette) {

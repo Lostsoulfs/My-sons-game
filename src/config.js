@@ -43,6 +43,32 @@ export const CAMERA = {
   calmCamera: true, // pin the camera (no follow) when reducedEffects is on (motion-sensitive)
 };
 
+// ---- boss ARRIVAL cinematic (ADR-0033) — the entrance before a combat boss fight ----
+// A non-ticking State.BOSS_INTRO freezes the fight while the camera pushes in on the boss, a
+// name+epithet card fades in, and a reveal beat (roar + flash + shake + particles) lands; then
+// it hands off to PLAYING. All feel-numbers here so it tunes live in `npm run dev`. Skippable
+// once you've SEEN that boss (saves.seenBosses) — the first encounter always plays in full.
+export const BOSS_INTRO = {
+  pushInMs: 1400, // camera ease from the room framing down toward the boss
+  holdMs: 900, // dwell on the boss with the name card up
+  fadeMs: 500, // card fade-out + camera ease back to the room
+  skipFadeMs: 260, // seen-boss SKIP: snappier eased pull-back from wherever the shot is (no hard cut)
+  revealAt: 0.55, // fraction of the push-in when the reveal beat fires (roar/flash/card)
+  camZoom: 0.62, // how far to pull the base camera distance IN toward the boss (0=none, 1=on top)
+  camLift: 0.5, // ...keep a fraction of the height so it stays a readable 3/4 view, not top-down
+  trauma: 0.35, // screen-shake punch on the reveal beat (juice trauma², ~boss-death range)
+  particles: 26, // cosmetic burst at the boss on reveal (pooled, non-rng)
+  wallInset: 4, // how far off the wall the boss stands (mirrors DUO.spawnZOffset)
+  sting: 'bossIntro', // sfx id for the reveal (falls through to the synth roar if unrecipe'd)
+};
+
+// ---- human decision-boss APPROACH mini-scene (ADR-0033) — buildup before the A/B/C/D choice ----
+export const HUMAN_APPROACH = {
+  approachRadius: 6, // walk within this of the survivor to trigger the choice (or press interact)
+  civilians: 3, // ambient (passive) survivors standing around him for tension
+  buildupMinMs: 700, // don't let the choice fire for at least this long (a beat to read the room)
+};
+
 // ---- lighting + fog (scene.js) ----
 // The game's MOOD lives here: a warm key light + a cool fill over a purple
 // hemisphere/ambient, plus fog that fades the far wall. Tweak intensities/colors to make
@@ -824,6 +850,7 @@ export const FEEL = {
   screenFlash: {
     hurt: { peak: 0.22, color: '#ff2a2a', ms: 90 }, // subtle red, on top of the blood splatter
     bossDeath: { peak: 0.4, color: '#ffffff', ms: 140 }, // white pop when a boss falls
+    bossReveal: { peak: 0.5, color: '#ffd18a', ms: 220 }, // warm slam on a boss entrance reveal (ADR-0033)
   },
   // ---- knockback (research report (5)) — a hit shoves an enemy back a little, then it decays.
   // Pure GAMEPLAY (it moves enemies), so it is NOT gated by reducedEffects. Bosses are immovable by

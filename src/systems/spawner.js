@@ -8,13 +8,23 @@
 // is a room replayed, and run determinism is path-independent.
 // =====================================================================
 
-import { ARENA, ROOMS, ENEMY, NPC, DUO, DIFFICULTY } from '../config.js';
+import {
+  ARENA,
+  ROOMS,
+  ENEMY,
+  NPC,
+  DUO,
+  DIFFICULTY,
+  BOSS_INTRO,
+  HUMAN_APPROACH,
+} from '../config.js';
 import { hardnessFacet } from '../core/scaling.js';
 import { Enemy } from '../entities/enemies.js';
 import { Boss } from '../entities/boss.js';
 import { DuoController } from '../entities/bosses/duo.js';
 import { Npc } from '../entities/npc.js';
 import { circleVsBox } from '../core/math2d.js';
+import { bossSpawnForEntry } from '../core/bossPlacement.js';
 
 const SURVIVOR_NAMES = [
   'a player',
@@ -64,20 +74,47 @@ export function populateRoom(game, desc, rng) {
 
   // ---- BOSS ROOM ----
   if (desc.isBossRoom) {
-    const z = -ARENA.depth / 2 + DUO.spawnZOffset;
-    if (desc.def.duo) {
-      // multi-boss: spawn both beasts under one shared DuoController (alternating
-      // aggression + enrage-on-partner-death). Spread them so two HP bars read.
+    // ADR-0033: the boss stands on the wall OPPOSITE the entry (you cross the room to it),
+    // facing centre. Duo beasts spread along that wall's free axis so two HP bars read.
+    const duoTypes = desc.def.duo;
+    const { spots } = bossSpawnForEntry(desc.entrySide, ARENA, {
+      inset: BOSS_INTRO.wallInset,
+      spread: DUO.spawnX,
+      count: duoTypes ? duoTypes.length : 1,
+    });
+    // ADR-0033: bosses spawn SILENT — game.js fires the roar on the entrance reveal beat
+    // (combat bosses) or the human's wrong-read fight start, not here at spawn.
+    const opts = { silentRoar: true };
+    if (duoTypes) {
       const ctrl = new DuoController(rng, DUO);
-      desc.def.duo.forEach((type, i) => {
-        const x = i === 0 ? -DUO.spawnX : DUO.spawnX;
-        const boss = new Boss(game.scene, x, z, type, desc.diff, desc.def.palette);
+      duoTypes.forEach((type, i) => {
+        const s = spots[i];
+        const boss = new Boss(game.scene, s.x, s.z, type, desc.diff, desc.def.palette, opts);
+        boss.mesh.rotation.y = s.facing;
         ctrl.add(boss);
         game.addEnemy(boss);
       });
       game.duo = ctrl;
     } else {
-      game.addEnemy(new Boss(game.scene, 0, z, desc.def.boss, desc.diff, desc.def.palette));
+      const s = spots[0];
+      const boss = new Boss(game.scene, s.x, s.z, desc.def.boss, desc.diff, desc.def.palette, opts);
+      boss.mesh.rotation.y = s.facing;
+      game.addEnemy(boss);
+    }
+    // ADR-0033: the human decision-boss gets a few PASSIVE civilians huddled around him
+    // (the mini-scene's crowd). They're in game.npcs but flagged passive → never interactable.
+    if (desc.def.boss === 'human') {
+      const c = spots[0];
+      const hw = ARENA.width / 2 - 2;
+      const hd = ARENA.depth / 2 - 2;
+      for (let i = 0; i < HUMAN_APPROACH.civilians; i++) {
+        const a = Math.PI * 2 * (i / HUMAN_APPROACH.civilians) + 0.6;
+        const r = 3.5 + (i % 2);
+        const cx = Math.max(-hw, Math.min(hw, c.x + Math.cos(a) * r));
+        const cz = Math.max(-hd, Math.min(hd, c.z + Math.sin(a) * r));
+        if (game.walls.some((b) => circleVsBox(cx, cz, 1, b))) continue; // skip a wall-clipped slot
+        game.npcs.push(new Npc(game.scene, cx, cz, rng.pick(SURVIVOR_NAMES), { passive: true }));
+      }
     }
     return;
   }

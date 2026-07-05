@@ -12,12 +12,13 @@ import { makeCharacter } from './characterMesh.js';
 import { dist } from '../core/math2d.js';
 
 export class Npc {
-  constructor(scene, x, z, name) {
+  constructor(scene, x, z, name, opts = {}) {
     this.x = x;
     this.z = z;
     this.radius = NPC.radius;
     this.name = name || 'a survivor';
     this.used = false;
+    this.passive = !!opts.passive; // ADR-0033 ambient civilian: never interactable, no "!" marker
 
     this.mesh = makeCharacter('npc', {
       radius: NPC.radius,
@@ -33,11 +34,13 @@ export class Npc {
       new THREE.MeshBasicMaterial({ color: 0xffffff }),
     );
     this.marker.position.set(x, NPC.height + 0.8, z);
+    this.marker.visible = !this.passive; // civilians have no "!" (they're scenery, not a choice)
     scene.add(this.marker);
     this._t = Math.random() * 10;
   }
 
   inRange(player) {
+    if (this.passive) return false; // ambient civilians never trigger the help/leave prompt
     return !this.used && dist(this.x, this.z, player.x, player.z) <= NPC.interactRadius;
   }
 

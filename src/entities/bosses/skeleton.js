@@ -61,6 +61,7 @@ function teleportSpot(boss, game) {
 
 export const skeleton = {
   name: 'Rattlebones',
+  title: 'Marshal of the Catacombs',
   roar: 'bossRoar',
 
   buildMesh(boss, palette) {

@@ -29,6 +29,7 @@ function fireSporeRing(boss, game) {
 
 export const mushroom = {
   name: 'The Mushroom King',
+  title: 'Sovereign of the Fungal Depths',
   roar: 'bossRoar',
 
   buildMesh(boss, palette) {
