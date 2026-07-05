@@ -72,8 +72,8 @@ export const hud = {
   // the connected-floor minimap (ADR-0032): a pooled grid of absolutely-positioned
   // cells painted from the PURE minimapView model — explored rooms + adjacent
   // unknowns, special-room identity hidden. Event-driven via refreshHud, never per-tick.
-  setMinimap(view) {
-    const el = $('minimap');
+  setMinimap(view, elId = 'minimap') {
+    const el = $(elId);
     if (!el || !view) return;
     const { cell, gap } = MINIMAP;
     // grow the cell pool as needed (rooms only ever get revealed within a floor;

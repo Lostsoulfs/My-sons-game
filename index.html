@@ -827,6 +827,180 @@
       #meta-close:hover {
         background: #2a2a50;
       }
+
+      /* ---- CP-A pause overlay: map + options + opt-in all-stats (semi-transparent so the
+         frozen game shows behind). ESC / Start toggles; the sim doesn't tick while shown. ---- */
+      #pausemenu {
+        position: fixed;
+        inset: 0;
+        z-index: 22;
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 20px;
+        text-align: center;
+        background: rgba(7, 5, 10, 0.86);
+        color: #fff;
+        pointer-events: auto;
+      }
+      #pausemenu.show {
+        display: flex;
+      }
+      #pausemenu h1 {
+        margin: 0;
+        font-size: 40px;
+        letter-spacing: 6px;
+        text-transform: uppercase;
+        color: #ffd24a;
+        text-shadow: 0 3px 14px #000;
+      }
+      /* the hub: a vertical list of buttons */
+      #pause-hub {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        align-items: center;
+      }
+      .pause-hub-btn {
+        cursor: pointer;
+        width: 300px;
+        padding: 13px 20px;
+        font-size: 19px;
+        font-weight: 800;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        color: #fff;
+        background: #241c30;
+        border: 2px solid #6a5a8a;
+        border-radius: 12px;
+        transition:
+          transform 0.1s ease,
+          background 0.15s ease;
+      }
+      .pause-hub-btn:hover {
+        background: #34285a;
+        transform: scale(1.03);
+        outline: 3px solid #ffd24a;
+      }
+      .pause-hub-btn.resume {
+        border-color: #ff5a4f;
+      }
+      .pause-hub-btn.resume:hover {
+        background: #4a2030;
+      }
+      /* a sub-view: back + title + scrollable body */
+      #pause-view {
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        width: min(92vw, 900px);
+      }
+      #pause-view .menu-back {
+        align-self: flex-start;
+        cursor: pointer;
+        padding: 8px 16px;
+        font-size: 15px;
+        font-weight: 700;
+        color: #fff;
+        background: #241c30;
+        border: 2px solid #6a5a62;
+        border-radius: 10px;
+      }
+      #pause-view .menu-back:hover {
+        background: #34285a;
+      }
+      #pause-view-body {
+        width: 100%;
+        max-height: 62vh;
+        overflow: auto;
+        background: #14101c;
+        border: 1px solid #3a3350;
+        border-radius: 14px;
+        padding: 16px 18px;
+      }
+      .pause-panel-title {
+        font-size: 15px;
+        font-weight: 800;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        color: #b9a6ff;
+      }
+      #pause-map {
+        position: relative;
+        margin: 4px auto;
+      }
+      /* multi-player columns (stats / gear) */
+      .pause-cols {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 26px;
+        justify-content: center;
+      }
+      .pause-statcol {
+        min-width: 190px;
+        text-align: left;
+      }
+      .pause-statcol-head {
+        font-size: 15px;
+        font-weight: 800;
+        color: #ffeede;
+        margin-bottom: 8px;
+        letter-spacing: 1px;
+      }
+      .pause-stat-section {
+        margin-bottom: 10px;
+      }
+      .pause-stat-title {
+        font-size: 11px;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        color: #8a7fb0;
+        margin-bottom: 3px;
+      }
+      .pause-stat-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+      .pause-stat-label {
+        color: #cbb9c6;
+      }
+      .pause-stat-value {
+        color: #fff;
+        font-variant-numeric: tabular-nums;
+        font-weight: 700;
+      }
+      #pause-options {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        align-items: stretch;
+      }
+      .pause-opt {
+        cursor: pointer;
+        padding: 10px 14px;
+        font-size: 15px;
+        font-weight: 700;
+        color: #fff;
+        background: #241c30;
+        border: 2px solid #6a5a8a;
+        border-radius: 10px;
+      }
+      .pause-opt:hover {
+        background: #34285a;
+      }
+      #pause-vol {
+        width: 100%;
+      }
+      #pausemenu .hint {
+        font-size: 13px;
+        color: #9a8a8a;
+        letter-spacing: 1px;
+      }
     </style>
   </head>
   <body>
@@ -921,6 +1095,25 @@
       <div id="offer-cards"></div>
       <div id="offer-reroll"></div>
       <div id="offer-controls"></div>
+    </div>
+
+    <!-- CP-A pause HUB: a list of buttons, each opening its own view. ESC / Start toggles. -->
+    <div id="pausemenu">
+      <h1>Paused</h1>
+      <div id="pause-hub">
+        <button id="pause-resume" class="pause-hub-btn resume">▶ Resume</button>
+        <button class="pause-hub-btn" data-view="map">🗺️ Map</button>
+        <button class="pause-hub-btn" data-view="stats">📊 Stats</button>
+        <button class="pause-hub-btn" data-view="gear">🎒 Gear</button>
+        <button class="pause-hub-btn" data-view="unlocks">🔓 Unlocks</button>
+        <button class="pause-hub-btn" data-view="options">⚙️ Options</button>
+      </div>
+      <div id="pause-view">
+        <button id="pause-back" class="menu-back">← Back</button>
+        <div id="pause-view-title" class="pause-panel-title"></div>
+        <div id="pause-view-body"></div>
+      </div>
+      <div class="hint">ESC / Start to resume</div>
     </div>
 
     <!-- accessibility / feel settings: volume, mute, hitbox overlay, effects (persisted) -->

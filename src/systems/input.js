@@ -39,6 +39,7 @@ export class Input {
     this._kbLeave = false;
     this._kbRestart = false;
     this._kbForge = false;
+    this._kbPause = false;
     this._padHelp = false;
     this._padLeave = false;
     this._padRestart = false;
@@ -75,6 +76,7 @@ export class Input {
         if (k === 'q') this._kbLeave = true;
         if (k === 'r') this._kbRestart = true;
         if (k === 'f') this._kbForge = true;
+        if (k === 'escape') this._kbPause = true;
         if (k === '1') this._kbSlot = 0;
         if (k === '2') this._kbSlot = 1;
         if (k === '3') this._kbSlot = 2;
@@ -265,6 +267,20 @@ export class Input {
   consumeRestart() {
     const v = this._kbRestart || this._padRestart;
     this._kbRestart = false;
+    this._padRestart = false;
+    return v;
+  }
+
+  /**
+   * Pause/resume edge: ESC (keyboard) or the Start button (pad). The pad Start edge is SHARED
+   * with consumeRestart on purpose — restart is only ever consumed in DEAD/WIN and pause only in
+   * PLAYING/ROOM_CLEAR/PAUSED, which are mutually-exclusive states, so exactly one consumer reads
+   * the edge per press. (Two separate flags off one button would leave a stale one lingering into
+   * the next state — the very bug this avoids.)
+   */
+  consumePause() {
+    const v = this._kbPause || this._padRestart;
+    this._kbPause = false;
     this._padRestart = false;
     return v;
   }

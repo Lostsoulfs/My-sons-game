@@ -521,6 +521,40 @@ export class Player {
     );
   }
 
+  /**
+   * A flat, display-ready read of every stat the pause menu surfaces (CP-A). Raw values only —
+   * no explanations (the no-hand-holding rule lives in the UI). One seam so the panel never
+   * reaches into private fields; `core/statsPanel.js` turns this into display rows.
+   */
+  statsSnapshot() {
+    const w = this._wUp();
+    return {
+      character: this.character,
+      weapon: this.weaponName,
+      hearts: this.hearts,
+      maxHearts: this.maxHearts,
+      guardCharges: this.guardCharges,
+      // derived multipliers (what actually reaches the sim)
+      damageMul: this.damageMul,
+      fireRateMul: this.fireRateMul,
+      speedMul: this.speed / PLAYER.speed,
+      globalDamageFlat: this._globalDamageFlat,
+      // in-run positive dial
+      luck: this._up.luck,
+      // permanent (Resonance / Fortune) baseline
+      baseline: { ...this._baseline },
+      // the HELD gun's per-weapon stacks + mods (ADR-0030)
+      weaponStacks: {
+        damage: w.damage ?? 0,
+        fireRate: w.fireRate ?? 0,
+        pierce: w.pierce ?? 0,
+        bounces: w.bounces ?? 0,
+        bulletSpeed: w.bulletSpeed ?? 0,
+        explodeRadius: w.explodeRadius ?? 0,
+      },
+    };
+  }
+
   /** apply a survivor outcome or pickup buff/debuff. The UPs add one stack each
    *  (magnitude-agnostic) and recompute from the curve; HEAL/TAKE_DAMAGE use it. */
   applyEffect(effect, magnitude, game) {
