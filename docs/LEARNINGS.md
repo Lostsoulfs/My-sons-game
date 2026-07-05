@@ -136,7 +136,8 @@ Referenced by the Working Agreement (`AGENTS.md` #2).
   decoupled loop (`core/loop.js`). The genuine gaps were (a) no way to pin a
   run's seed and (b) no cross-system determinism check.
 - Added: optional `seed` on `startRun` (default unchanged) so a run is replayable
-  via `window.__game.startRun(false, N)`; and `tests/determinism.test.js` driving
+  via `window.__game.startRun(false, 'dad', N)` (CP5 moved the seed to arg 3; a numeric arg 2 is still
+  accepted as the seed); and `tests/determinism.test.js` driving
   the real pure rng seams (`dropRandomPickup`, `resolveDecision`, spawn rolls)
   through one shared rng. `populateRoom` is render-coupled (builds Enemy/Boss/Npc
   with the scene), so the full `Game` step stays out of the headless test — the
@@ -659,7 +660,7 @@ base*(1+growth)^i`. Removed the hand-set per-floor `diff` from `PROGRESSION.floo
   unconditionally at mesh creation (one line in the `Enemy`/`Boss` ctors + `makeCharacter`) — no need
   to thread the config flag through every mesh site. The master switch lives on the renderer + key
   light. Traversing the entity root covers GLB sub-meshes in one call.
-- **Headless shadow verification:** drive the game past the menu with `window.__game.startRun(seed)` +
+- **Headless shadow verification:** drive the game past the menu with `window.__game.startRun(false, 'dad', seed)` +
   `loadRoom(9)` (floor-1 boss room), then **hide the `#startmenu` DOM overlay** (`startRun` loads the
   room underneath but doesn't dismiss the menu) before screenshotting — otherwise you shoot the menu,
   not the game. `normalBias 0.02` + `bias -0.0005` gave clean soft shadows (no acne/peter-panning).
@@ -1064,3 +1065,29 @@ heatPerShot − coolRate·cooldown ≤ 0`, `dutyEnergy` returns 1 — i.e. no do
   through the real `applyOfferCard`; a guard blocks a whole hit and an unguarded 2-dmg hit lands full
   (no soak). Watch for the room-entry `spawnSafe` grace swallowing your first scripted `hurt()` — clear
   `spawnSafe`+`invuln` before EACH hit in a drive.
+
+## CP5 — Dad/Son character select + AI-ally removal, 2026-07-05 (ADR-0038)
+
+- **The "AI ally" was never wired where you'd fear.** A pre-edit scout proved the ally touched only
+  update / render / room-reset / offer-reroll — NOT collision, targeting, or the minimap (those all go
+  through `game.nearestPlayer()` / `this.players`, which never included the ally). So removing it was
+  4 deletions + the offer-reroll UI, not a refactor. Lesson: map the blast radius before assuming a
+  companion entity is load-bearing.
+- **2P already used two full Players, not Ally+Player.** The green co-op partner was a second `Player`
+  with `device:'pad'` and the ally's _color/model_, never the `Ally` class. So "remove the 1P ally"
+  left co-op completely untouched — worth confirming before you brace for a co-op rewrite.
+- **Flavor for free from the starter weapon.** Dad=ballistic vs Son=energy needed ZERO character-side
+  code: the difference is entirely `WEAPON_LIMITS[starter]` (pistol reloads, laserpistol overheats,
+  CP2). Character `trait`s stay generic stat nudges (damage/speed/fireRate) merged onto the Echoes
+  baseline so they ride the existing `_recomputeUpgrades` path — no new stat plumbing.
+- **Deleting a param means hunting its SECOND consumer.** Dropping the offer `onReroll`/`solo` params
+  cleared the mouse-reroll block AND left a dangling `[R]` KEY handler that still referenced them —
+  lint caught the unused import, but the keydown branch was a silent broken-ref until grep. Grep the
+  param name, not just the obvious call site.
+- **A signature change ripples to every restart path.** `startRun(coop)` → `startRun(coop, character)`
+  meant the two restart-after-run callers (game over/win, debug menu) would silently reset a Son run to
+  Dad. Preserve it: `this.player?.character ?? 'dad'`. Any run-parameter added to startRun has to be
+  threaded through restart, not just the menu.
+- **Keep the dormant class, drop its wiring.** The plan wants `Ally` for a future pet, so the class +
+  `config.ALLY` stay as an unreferenced file (not imported) rather than living behind a dead `if`
+  branch in game.js — cleaner than either deleting it or keeping guarded dead code. 463 tests; gate green.

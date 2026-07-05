@@ -43,3 +43,4 @@ below).
 | [0035](0035-weapon-reload-overheat.md)             | Weapon downside — reload (ballistic) + overheat (energy)                   | Proposed |
 | [0036](0036-weapon-power-budget-rarity.md)         | Weapon power-budget model — rarity ≈ power, strict pyramid, no pity        | Proposed |
 | [0037](0037-luck-curse-curve-upgrade-rework.md)    | Luck/curse magic-find curve + survival-upgrade rework (cut HP/soak)        | Proposed |
+| [0038](0038-character-select-ally-removal.md)      | Dad/Son character select + AI-ally removal (1P solo, ally→future pet)      | Proposed |

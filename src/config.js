@@ -143,7 +143,30 @@ export const PLAYER = {
   invuln: 0.8, // i-frames after a hit (seconds)
 };
 
-// ---- ally (AI ally) ----
+// ---- CP5 (ADR-0038): playable characters (Dad / Son) ----
+// 1P picks ONE; 2P is always Dad (P1) + Son (P2). The ballistic/energy FLAVOR comes free from the
+// STARTER weapon (Dad = pistol → magazine+reload; Son = laserpistol → overheat — CP2 WEAPON_LIMITS).
+// `trait` is a small permanent +/− baseline stat mod, merged into the Echoes baseline in
+// game.startRun so it flows through player._recomputeUpgrades like any Resonance bonus (positive =
+// better on every axis: +damage, +speed, +fireRate = faster). First-pass numbers — tune in playtest.
+export const CHARACTERS = {
+  dad: {
+    name: 'Dad',
+    modelKey: 'player', // blue silhouette
+    color: PALETTE.player,
+    starter: 'pistol', // ballistic — reloads
+    trait: { damage: 0.1, speed: -0.05 }, // heavier hitter, a touch slower
+  },
+  son: {
+    name: 'Son',
+    modelKey: 'ally', // green silhouette (the old AI-ally mesh is now the Son)
+    color: PALETTE.ally,
+    starter: 'laserpistol', // energy — overheats
+    trait: { damage: -0.05, speed: 0.1, fireRate: 0.05 }, // faster + quicker trigger, lighter shots
+  },
+};
+
+// ---- ally (dormant since CP5 — the class stays for a future PET system; not spawned in play) ----
 export const ALLY = {
   radius: 0.85, // matches the player (size ladder)
   height: 2.2,

@@ -414,6 +414,51 @@
         letter-spacing: 1px;
       }
 
+      /* ---- CP5: solo character pick (Dad / Son) ---- */
+      #modepick,
+      #charpick {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 18px;
+      }
+      #charpick .charpick-title {
+        font-size: 20px;
+        font-weight: 800;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        color: #ffeede;
+        text-shadow: 0 2px 10px #000;
+      }
+      /* Dad/Son cards: a bold name over a dim, normal-case flavor sub-line */
+      #btnDad,
+      #btnSon {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        align-items: center;
+      }
+      #btnDad span,
+      #btnSon span {
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        text-transform: none;
+        color: #cbb9b9;
+      }
+      #btnDad {
+        border-color: #49b3ff;
+      } /* Dad = blue */
+      #btnSon {
+        border-color: #6cff8a;
+      } /* Son = green */
+      #btnCharBack.menu-back {
+        width: 160px;
+        font-size: 15px;
+        padding: 10px 16px;
+        border-color: #6a5a62;
+      }
+
       /* ---- room-clear upgrade offer: pick 1 of 3 (B9b, ui/offer.js) ---- */
       #offer {
         position: fixed;
@@ -818,11 +863,20 @@
 
     <div id="startmenu">
       <h1>🩸 City of Monsters</h1>
-      <button id="btn1p">▶ 1 Player</button>
-      <button id="btn2p">🎮 2 Players</button>
-      <div class="hint">
-        P1: WASD + mouse &nbsp;·&nbsp; P2: Xbox controller (left stick move, right stick aim, RT
-        shoot) &nbsp;·&nbsp; click once for sound
+      <div id="modepick">
+        <button id="btn1p">▶ 1 Player</button>
+        <button id="btn2p">🎮 2 Players</button>
+        <div class="hint">
+          P1: WASD + mouse &nbsp;·&nbsp; P2: Xbox controller (left stick move, right stick aim, RT
+          shoot) &nbsp;·&nbsp; click once for sound
+        </div>
+      </div>
+      <!-- CP5: solo character pick (2P is always Dad + Son) -->
+      <div id="charpick" style="display: none">
+        <div class="charpick-title">Choose your survivor</div>
+        <button id="btnDad">🧔 Dad<span>ballistic pistol · heavy hitter</span></button>
+        <button id="btnSon">🧒 Son<span>energy laser · quick &amp; nimble</span></button>
+        <button id="btnCharBack" class="menu-back">← back</button>
       </div>
       <button id="btn-credits">♪ Credits</button>
       <button id="btn-meta">🌀 Resonance</button>

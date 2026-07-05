@@ -2,9 +2,9 @@
 // offer.js — the room-clear "pick 1 of 3" upgrade OFFER overlay (B9b). Shows N tier-colored cards
 // (from core/offers.js); the player picks one. Plain DOM overlay (#offer in index.html) — no library,
 // same shape as humanchoice.js. Mouse, keyboard (1-3 / arrows + Enter), and gamepad (via
-// moveOfferFocus/confirmOffer, driven from game.update's OFFER arm). Solo also gets an [R] control to
-// reroll the AI ally's weapon. If the overlay element is missing (headless tests / browser smoke), it
-// auto-resolves the first card so the game still advances. Never throws.
+// moveOfferFocus/confirmOffer, driven from game.update's OFFER arm). If the overlay element is missing
+// (headless tests / browser smoke), it auto-resolves the first card so the game still advances. Never
+// throws. (CP5: the old solo AI-ally weapon-reroll control was removed with the ally.)
 // =====================================================================
 
 const TIER_LABEL = { common: 'COMMON', rare: 'RARE', epic: 'EPIC', ultra: 'ULTRA' };
@@ -14,16 +14,11 @@ let active = null; // { moveFocus, confirm } while the overlay is up (for the ga
 /**
  * Show the offer overlay.
  * @param {Array<{id:string,name:string,category:string,tier:string,blurb:string}>} cards
- * @param {{onPick:(i:number)=>void, solo?:boolean, playerTag?:string|null,
- *          allyWeaponName?:string|null, onReroll?:(()=>string)|null}} opts
- *   onPick = required, called with the chosen index then the overlay hides; solo = show the ally-reroll
- *   control; playerTag = 'P1'/'P2' in co-op (null solo); onReroll = called on [R], returns the NEW ally
- *   weapon name (the hint updates in place; the overlay stays open).
+ * @param {{onPick:(i:number)=>void, playerTag?:string|null}} opts
+ *   onPick = required, called with the chosen index then the overlay hides; playerTag = 'P1'/'P2' in
+ *   co-op (null solo).
  */
-export function showOffer(
-  cards,
-  { onPick, solo = false, playerTag = null, allyWeaponName = null, onReroll = null } = {},
-) {
+export function showOffer(cards, { onPick, playerTag = null } = {}) {
   const overlay = typeof document !== 'undefined' && document.getElementById('offer');
   if (!overlay) {
     onPick(0); // headless / no-DOM: resolve so the game still advances
@@ -56,21 +51,10 @@ export function showOffer(
     return btn;
   });
 
-  // ally-weapon reroll control (solo only)
+  // CP5: the AI-ally weapon-reroll control was removed with the ally. Hide the (now-vestigial) element
+  // if the DOM still carries it, so no stale "[R] Reroll ally's weapon" line lingers.
   const rerollEl = document.getElementById('offer-reroll');
-  const renderReroll = (name) => {
-    if (rerollEl) rerollEl.textContent = `[R] Reroll ally's weapon  (now: ${name})`;
-  };
-  const doReroll = () => {
-    if (!onReroll) return;
-    renderReroll(onReroll() ?? allyWeaponName ?? '—');
-  };
-  if (rerollEl) {
-    const showReroll = !!(solo && onReroll);
-    rerollEl.style.display = showReroll ? '' : 'none';
-    rerollEl.onclick = showReroll ? doReroll : null;
-    if (showReroll) renderReroll(allyWeaponName ?? '—');
-  }
+  if (rerollEl) rerollEl.style.display = 'none';
 
   const controls = document.getElementById('offer-controls');
   if (controls) controls.textContent = '1-3 / click / arrows + Enter  ·  left-stick + A';
@@ -102,9 +86,6 @@ export function showOffer(
       e.preventDefault();
     } else if (k === 'Enter' || k === ' ') {
       pick(focus);
-      e.preventDefault();
-    } else if ((k === 'r' || k === 'R') && solo && onReroll) {
-      doReroll();
       e.preventDefault();
     }
   };

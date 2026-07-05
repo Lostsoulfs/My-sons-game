@@ -42,9 +42,18 @@ const SHOOT_SFX = {
 export class Player {
   constructor(
     scene,
-    { color = PALETTE.player, modelKey = 'player', device = 'both', baseline = null } = {},
+    {
+      color = PALETTE.player,
+      modelKey = 'player',
+      device = 'both',
+      baseline = null,
+      startWeapon = 'pistol', // CP5: per-character starter (Dad='pistol', Son='laserpistol')
+      character = null, // CP5: 'dad' | 'son' | null — identity, for HUD/debug
+    } = {},
   ) {
     this.device = device; // 'kb' | 'pad' | 'both'
+    this._startWeapon = startWeapon;
+    this.character = character;
     this.mesh = makeCharacter(modelKey, {
       radius: PLAYER.radius,
       height: PLAYER.height,
@@ -100,7 +109,7 @@ export class Player {
     this.offerRecent = []; // recently-offered item ids → anti-repeat (OFFERS.recentMemory)
     this.offerSeenWeapons = {}; // weapon id → times OFFERED this run (see-it-once decay, ADR-0030)
     this.offerCommonStreak = 0; // consecutive commons TAKEN → drives offer pity (per player)
-    this.slots = ['pistol']; // weapons you carry; slotsUnlocked is the capacity
+    this.slots = [this._startWeapon]; // weapons you carry (CP5: per-character starter); slotsUnlocked is the capacity
     this.slotIndex = 0;
     this._refreshWeapon(); // sets weapon + ensures its upgrade entry + recomputes derived stats
     this.mesh.position.set(x, 0, z);
