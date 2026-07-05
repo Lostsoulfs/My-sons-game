@@ -1147,6 +1147,39 @@ export const WEAPONS = {
   },
 };
 
+// ---- CP2: per-weapon RELOAD (ballistic) / HEAT (energy) limiters — the weapon "downside" ----
+// Ballistic guns fire `clipSize` rounds then reload (`reloadTime` s of downtime). Energy guns build
+// `heatPerShot` and bleed `coolRatePerSec`; at full heat they OVERHEAT until back under `resetHeat`
+// (feathering never overheats — only sustained hosing does). The minigun is ballistic-flavored but
+// uses HEAT (spin-up + overheat, per Scott — no ammo). Orbital is a passive contact weapon → no
+// limiter (omitted). Pure state machines: core/reload.js + core/heat.js. These are CP2 feel-starting
+// values; CP3's power model tunes them so each gun's SUSTAINED dps lands in its rarity band.
+export const WEAPON_LIMITS = {
+  // ballistic → magazine + reload
+  pistol: { reload: { clipSize: 8, reloadTime: 1.0 } },
+  shotgun: { reload: { clipSize: 6, reloadTime: 1.3 } },
+  machinegun: { reload: { clipSize: 40, reloadTime: 1.7 } },
+  rocket: { reload: { clipSize: 4, reloadTime: 1.6 } },
+  homing: { reload: { clipSize: 6, reloadTime: 1.6 } },
+  charge: { reload: { clipSize: 4, reloadTime: 1.5 } },
+  uzi: { reload: { clipSize: 28, reloadTime: 1.6 } },
+  carbine: { reload: { clipSize: 15, reloadTime: 1.2 } },
+  garand: { reload: { clipSize: 8, reloadTime: 1.4 } }, // M1 Garand en-bloc clip = 8 (thematic)
+  thompson: { reload: { clipSize: 30, reloadTime: 1.7 } },
+  ppsh: { reload: { clipSize: 45, reloadTime: 2.0 } }, // drum mag
+  bar: { reload: { clipSize: 20, reloadTime: 1.5 } },
+  browning: { reload: { clipSize: 48, reloadTime: 3.4 } }, // belt-fed → the long reload IS its downside
+  davycrockett: { reload: { clipSize: 2, reloadTime: 2.4 } }, // 2 nukes, then a long reload
+  // energy → overheat gauge
+  laserpistol: { heat: { heatPerShot: 0.08, coolRatePerSec: 0.5, resetHeat: 0.25 } },
+  railgun: { heat: { heatPerShot: 0.14, coolRatePerSec: 0.35, resetHeat: 0.3 } },
+  bouncer: { heat: { heatPerShot: 0.07, coolRatePerSec: 0.5, resetHeat: 0.25 } },
+  maser: { heat: { heatPerShot: 0.12, coolRatePerSec: 0.4, resetHeat: 0.3 } },
+  raygun: { heat: { heatPerShot: 0.16, coolRatePerSec: 0.35, resetHeat: 0.35 } }, // overheats fast
+  plasma: { heat: { heatPerShot: 0.2, coolRatePerSec: 0.3, resetHeat: 0.3 } },
+  minigun: { heat: { heatPerShot: 0.02, coolRatePerSec: 0.25, resetHeat: 0.3 } }, // spin-up + overheat
+};
+
 // ---- pickups you walk over to grab ----
 export const PICKUPS = {
   radius: 0.7, // grab range

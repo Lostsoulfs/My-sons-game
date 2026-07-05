@@ -943,6 +943,7 @@ export class Game {
 
   render() {
     this.overlays.sync(this); // boss telegraph rings + (opt-in) hitbox overlay
+    if (this.player) hud.setLimiter(this.player.limiterHud()); // CP2: live reload/heat readout
     // trauma-driven shake from COHERENT noise (juice.js) — no Math.random, so a seeded run
     // renders identical camera motion (ADR-0013) — composed with the B3 spring-follow pan.
     const sh = this.juice.shakeOffsetXZ(performance.now() / 1000);

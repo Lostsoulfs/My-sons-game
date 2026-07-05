@@ -973,3 +973,30 @@ camProg` from the nearest player's DISTANCE to him (smoothstep over `camFocusFro
 - **Render-only, no test coverage** (camera math runs in `render()`, outside the Vitest include) — so
   verify by exercising the real helper on `window.__game` and computing the pitch, NOT by screenshot
   (hidden-tab throttle). 396 tests unchanged; lint/format/build green.
+
+## 2026-07-05 — CP2 weapon downside: reload (ballistic) + overheat (energy) (ADR-0035)
+
+- **Flavor became MECHANICAL for free by keying off the existing `isEnergyColor` split.** Ballistic
+  guns get a magazine + reload; energy guns get an overheat gauge; the minigun is ballistic-flavored
+  but uses heat (spin-up + overheat, no ammo, per Scott). Pure state machines `core/reload.js` +
+  `core/heat.js` (init/tick/fire/canFire), driven by the fixed-step `dt` (never wall-clock) → seed-
+  deterministic (ADR-0013). All params in ONE `config.WEAPON_LIMITS` block (per-weapon `reload`|`heat`),
+  not inline on each `WEAPONS` row — one place to tune the roster, tiny diff.
+- **Continuous cooling is what makes feathering a skill seam.** Heat bleeds `coolRatePerSec` EVERY
+  frame and adds `heatPerShot` per shot; net per shot = `heatPerShot − coolRate·cooldown`. If negative
+  (feathering slower than it cools) you never overheat; hosing (positive net) climbs to 1 and latches a
+  forced cooldown until it bleeds under `resetHeat`. So the "overheat downtime" is IMPLIED by
+  coolRate+resetHeat, not a separate param — cleaner than a fixed `overheatCooldownS`. Live-verified:
+  raygun overheats in 6 hosed shots, then locks out and bleeds down.
+- **Per-weapon state maps keyed by weapon key persist across swaps** (`_clip`, `_heatState`) — so you
+  can't dodge a reload by switching away and back. Lazily initialised.
+- **The live drive caught a robustness gap the unit tests couldn't:** `_consumeShot` assumed
+  `_tickLimiter` had already lazy-init'd the state (true in the real firing path: tick-then-fire). Calling
+  it standalone (my drive did, after clearing state) threw `Cannot read heat of undefined`. Fixed by making
+  `_consumeShot` self-init too. Lesson: driving the REAL wired object on `window.__game` (not just the pure
+  units) surfaces integration assumptions the pure tests never exercise — worth doing even when the core
+  logic is fully unit-covered.
+- **A continuously-bleeding gauge needs a per-FRAME HUD update**, but the game's `refreshHud` is
+  event-driven (room changes). So `hud.setLimiter(player.limiterHud())` is called from `render()` each
+  frame (guarded by `if (this.player)` for the pre-run menu). Cheap: one element, textContent + a class.
+  10 new pure tests (reload/heat); 406 total; lint/format/build green.

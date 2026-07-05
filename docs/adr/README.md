@@ -40,3 +40,4 @@ below).
 | [0032](0032-connected-floor-map.md)                | Connected floor map — Isaac-grid rooms, backtracking, minimap              | Proposed |
 | [0033](0033-boss-arrivals.md)                      | Boss arrivals — entry-opposite spawn, BOSS_INTRO cinematic, human approach | Proposed |
 | [0034](0034-adaptive-graphics-quality.md)          | Adaptive graphics quality — measure FPS, auto-downgrade weak machines      | Proposed |
+| [0035](0035-weapon-reload-overheat.md)             | Weapon downside — reload (ballistic) + overheat (energy)                   | Proposed |
