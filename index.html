@@ -131,6 +131,31 @@
         letter-spacing: 1px;
         opacity: 0.85;
       }
+      /* ADR-0032 connected-floor minimap: pooled cells, painted by hud.setMinimap */
+      #minimap {
+        position: absolute;
+        top: 52px;
+        right: 18px;
+        opacity: 0.85;
+      }
+      .mm-cell {
+        position: absolute;
+        /* width/height are set inline from config.MINIMAP.cell by hud.setMinimap
+           (single source of truth — see the layout math there) */
+        border-radius: 3px;
+        background: #2a3340; /* fallback; kinds below override */
+      }
+      .mm-cell.mm-current {
+        background: #ffe24a;
+        box-shadow: 0 0 6px #ffe24a;
+      }
+      .mm-cell.mm-cleared {
+        background: #3fa2d8;
+      }
+      .mm-cell.mm-adjacent {
+        background: #2a3340;
+        outline: 1px dashed #56657a;
+      }
       #banner {
         position: absolute;
         top: 38%;
@@ -715,6 +740,7 @@
       <div id="lives"></div>
       <div id="hearts2"></div>
       <div id="room"></div>
+      <div id="minimap"></div>
       <div id="bossbars">
         <div class="bossbar" data-i="0">
           <div class="bossbar-name"></div>

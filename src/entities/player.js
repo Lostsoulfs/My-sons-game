@@ -73,6 +73,7 @@ export class Player {
     this.alive = true;
     this.fireTimer = 0;
     this.invuln = 0;
+    this.spawnSafe = 0; // ADR-0032 room-entry grace: damage-immune but NOT flickering (unlike invuln)
     this._beatTimer = 0;
     // upgrade STACKS — seeded from the permanent baseline (all-zero pre-beat), then each OFFER pick
     // (B9b) adds one; the derived stats come from the diminishing-returns curve (config.UPGRADES +
@@ -238,6 +239,7 @@ export class Player {
     }
 
     // --- i-frames + hit flash ---
+    if (this.spawnSafe > 0) this.spawnSafe -= dt; // silent entry grace (no flicker)
     if (this.invuln > 0) {
       this.invuln -= dt;
       this.mesh.visible = Math.floor(this.invuln * 20) % 2 === 0;
@@ -389,7 +391,7 @@ export class Player {
   }
 
   hurt(dmg, game) {
-    if (game.godMode || this.invuln > 0 || !this.alive) return;
+    if (game.godMode || this.invuln > 0 || this.spawnSafe > 0 || !this.alive) return;
     // guard charges + damage-reduction resolve BEFORE any heart comes off (core/defense.js, B9b)
     const res = resolveIncoming(dmg, {
       guardCharges: this.guardCharges,
@@ -478,6 +480,7 @@ export class Player {
         break;
       case 'TAKE_DAMAGE':
         this.invuln = 0;
+        this.spawnSafe = 0; // forced damage must LAND — clear entry grace too, else hurt() swallows it (ADR-0032)
         this.hurt(magnitude, game);
         break;
       // SPAWN_ENEMIES is handled by the game (it owns spawning)

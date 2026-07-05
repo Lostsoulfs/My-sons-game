@@ -20,10 +20,19 @@ import {
   MENU_CURSOR,
   SAVES,
   PICKUPS,
+  MAP,
+  ROOMS,
 } from './config.js';
 import { State } from './states.js';
 import { makeRng } from './core/rng.js';
-import { floorInfo, nextIsBoss, resolveDeath, weaponSlotsForBosses } from './core/progression.js';
+import { floorMeta, resolveDeath, weaponSlotsForBosses } from './core/progression.js';
+import {
+  generateFloorplan,
+  roomCountForFloor,
+  minimapView,
+  DIRS,
+  OPPOSITE,
+} from './core/floorplan.js';
 import { Player } from './entities/player.js';
 import { Ally } from './entities/ally.js';
 import { Enemy } from './entities/enemies.js';
@@ -72,9 +81,13 @@ export class Game {
     this.bosses = []; // 0, 1, or 2 bosses in a boss room (the duo = 2)
     this.duo = null; // DuoController when a multi-boss floor is loaded
     this.room = null;
-    this.roomIndex = 0;
+    // ADR-0032 connected map: the run is floors of room GRAPHS, not a linear index
+    this.floorIndex = 0;
+    this.floorplan = null; // generateFloorplan result for the current floor
+    this.nodeId = 0; // current room node id in the floorplan
+    this.explored = new Set(); // node ids entered this floor (drives the minimap)
     this.lives = CAPS.lives.start;
-    this.checkpointRoom = 0;
+    this.checkpointFloor = 0; // death respawns at this floor's start (regenerated)
     this.bossesBeaten = 0; // drives weapon-slot unlocks
     // B9b room-clear offer flow (a paused pick-1-of-3 modal, one per living player)
     this._offerActive = false; // an offer sequence is in progress (guards _finishRoomClear)
@@ -108,7 +121,7 @@ export class Game {
     // reproducible (e.g. window.__game.startRun(false, 12345)) — ADR-0013.
     this.rng = makeRng(seed);
     this.lives = CAPS.lives.start;
-    this.checkpointRoom = 0;
+    this.checkpointFloor = 0;
     this.bossesBeaten = 0;
     // reset the camera pan so a new run starts centered (no carry-over from a prior run)
     this.camPan.x = this.camPan.z = 0;
@@ -135,7 +148,24 @@ export class Game {
       this.players = [this.player];
     }
     hud.setCoop(coop);
-    this.loadRoom(0);
+    this._startFloor(0);
+  }
+
+  /** generate a floor's connected map (ADR-0032) and drop the team at its start room */
+  _startFloor(floorIndex) {
+    this.floorIndex = floorIndex;
+    this.floorplan = generateFloorplan(this.rng, {
+      ...MAP,
+      roomCount: roomCountForFloor(floorIndex, MAP),
+      survivors: ROOMS.survivorsPerFloor,
+    });
+    this.explored = new Set();
+    this.loadNode(this.floorplan.startId, null);
+  }
+
+  /** the current floorplan node */
+  _node() {
+    return this.floorplan.rooms[this.nodeId];
   }
 
   _teardownActors() {
@@ -168,8 +198,16 @@ export class Game {
     return best;
   }
 
-  loadRoom(index) {
-    this.roomIndex = index;
+  /**
+   * Enter a floorplan node (ADR-0032 — replaces the linear loadRoom(index)).
+   * @param {number} nodeId room node in this.floorplan
+   * @param {'N'|'S'|'E'|'W'|null} entrySide which of THIS room's doors we came in
+   *   through (null = floor start → bottom-center placement, like the old entrance)
+   */
+  loadNode(nodeId, entrySide) {
+    this.nodeId = nodeId;
+    const node = this._node();
+    this.explored.add(nodeId);
     this.bosses = [];
     this.duo = null; // re-created by the spawner if this is a multi-boss room
     this._bossHandled = false;
@@ -194,19 +232,80 @@ export class Game {
     this.weaponfx?.clear(); // drop queued secondary bursts — no FX leaking into the next room
     if (this.room) this.room.dispose();
 
-    this.room = buildRoom(this.scene, this.rng);
+    // the room's OWN rng (per-node seed, ADR-0032): layout + spawns replay identically
+    // on every re-entry, and run determinism is independent of the path walked
+    const layoutRng = makeRng(node.layoutSeed);
+    const link = DIRS.filter((d) => node.neighbours[d] != null);
+    // boss rooms grow the floor-EXIT door on a free side (prefer opposite the way in)
+    let exit = null;
+    if (node.type === 'boss') {
+      const free = DIRS.filter((d) => node.neighbours[d] == null);
+      exit = free.includes(OPPOSITE[link[0]]) ? OPPOSITE[link[0]] : free[0];
+    }
+    this.room = buildRoom(this.scene, layoutRng, { link, exit });
     this.walls = this.room.walls;
 
-    // place players at the bottom entrance (spread out in co-op)
+    // side-aware entry: crossing A's north door drops you at B's south edge
+    const hw = ARENA.width / 2;
+    const hd = ARENA.depth / 2;
+    const ENTRY = {
+      N: { x: 0, z: -hd + 4, spread: 'x' },
+      S: { x: 0, z: hd - 4, spread: 'x' },
+      E: { x: hw - 4, z: 0, spread: 'z' },
+      W: { x: -hw + 4, z: 0, spread: 'z' },
+    };
+    const at = ENTRY[entrySide] ?? ENTRY.S; // floor start = the classic bottom entrance
     this.players.forEach((pl, i) => {
-      pl.x = this.players.length > 1 ? (i === 0 ? -2.5 : 2.5) : 0;
-      pl.z = ARENA.depth / 2 - 4;
+      const off = this.players.length > 1 ? (i === 0 ? -2.5 : 2.5) : 0;
+      pl.x = at.x + (at.spread === 'x' ? off : 0);
+      pl.z = at.z + (at.spread === 'z' ? off : 0);
       pl.mesh.position.set(pl.x, 0, pl.z);
-      pl.mesh.visible = true;
+      pl.mesh.visible = pl.alive; // a downed co-op partner stays hidden until revived (ADR-0032)
+      // brief spawn grace: no free contact hit if a mob/boss sits on the entry (ADR-0032)
+      pl.spawnSafe = pl.alive ? ROOMS.entryGrace : 0;
     });
-    if (this.ally) this.ally.reset(2, ARENA.depth / 2 - 3);
+    if (this.ally) this.ally.reset(at.x + (at.spread === 'x' ? 1.5 : 0), at.z + 1);
 
-    populateRoom(this, index);
+    const meta = floorMeta(this.floorIndex);
+
+    // CLEARED RE-ENTRY (backtracking): no repopulation, doors open, straight to
+    // ROOM_CLEAR — a cleared room must NEVER reach PLAYING (the empty-room sweep
+    // there would re-fire the whole clear path: offers, slots, Echoes).
+    if (node.cleared) {
+      this.room.openDoors();
+      if (node.type === 'boss') this.room.openExit();
+      this.state = State.ROOM_CLEAR;
+      hud.hideBanner();
+      prompts.hide();
+      audio.setStageMusic(this.floorIndex);
+      this.refreshHud();
+      return;
+    }
+
+    // HEAL room (v1 special): a breather, not a fight — pre-cleared, no offer,
+    // one guaranteed HEAL waiting mid-room (Phase 6b adds more special types here).
+    if (node.type === 'heal') {
+      node.cleared = true;
+      this.spawnPickup('HEAL', 0, 0);
+      this.room.openDoors();
+      this.state = State.ROOM_CLEAR;
+      hud.hideBanner();
+      prompts.hide();
+      audio.setStageMusic(this.floorIndex);
+      this.refreshHud();
+      return;
+    }
+
+    const desc = {
+      floorIndex: this.floorIndex,
+      isBossRoom: node.type === 'boss',
+      depth: node.dist,
+      survivor: !!node.survivor,
+      def: meta.def,
+      diff: meta.diff,
+      entry: { x: at.x, z: at.z }, // keep spawns clear of the door we walked in through
+    };
+    populateRoom(this, desc, layoutRng);
     this.bosses = this.enemies.filter((e) => e.isBoss);
 
     this.state = State.PLAYING;
@@ -214,19 +313,18 @@ export class Game {
     prompts.hide();
     this.refreshHud();
 
-    const info = floorInfo(index);
     // music: a boss theme in a (non-decision) boss room, else the stage track. The
     // human decision-boss keeps the stage track until the fight actually starts.
-    if (info.isBossRoom && info.def.boss !== 'human' && this.bosses.length) {
-      audio.setBossMusic(info.def.boss);
+    if (desc.isBossRoom && desc.def.boss !== 'human' && this.bosses.length) {
+      audio.setBossMusic(desc.def.boss);
     } else {
-      audio.setStageMusic(info.floorIndex);
+      audio.setStageMusic(this.floorIndex);
     }
-    if (info.isBossRoom && info.def.boss === 'human') {
+    if (desc.isBossRoom && desc.def.boss === 'human') {
       // decision-boss: pause for the A/B/C/D approach choice BEFORE any fight
       this.state = State.HUMAN_CHOICE;
       showHumanChoice((choice) => this._onHumanChoice(choice));
-    } else if (info.isBossRoom && this.bosses.length) {
+    } else if (desc.isBossRoom && this.bosses.length) {
       const names = this.bosses.map((b) => b.name).join(' & ');
       hud.banner(`${names.toUpperCase()} — ${this.bosses.length > 1 ? 'KILL THEM' : 'KILL IT'}`);
       setTimeout(() => hud.hideBanner(), 1600);
@@ -234,11 +332,22 @@ export class Game {
   }
 
   refreshHud() {
-    const info = floorInfo(this.roomIndex);
     hud.setHearts(this.player.hearts, this.player.maxHearts);
     if (this.coop && this.player2) hud.setHearts2(this.player2.hearts, this.player2.maxHearts);
     hud.setLives(this.lives);
-    hud.setRoom(info, this._weaponLabel(this.player));
+    hud.setRoom(
+      {
+        floorIndex: this.floorIndex,
+        isBossRoom: this._node().type === 'boss',
+        explored: this.explored.size,
+        total: this.floorplan.rooms.length,
+      },
+      this._weaponLabel(this.player),
+    );
+    // event-driven minimap (never per-tick): explored + adjacent-unknown, identity hidden
+    hud.setMinimap(
+      minimapView(this.floorplan, { currentId: this.nodeId, explored: this.explored }),
+    );
   }
 
   _weaponLabel(p) {
@@ -453,21 +562,24 @@ export class Game {
     this.bullets.clearEnemyBullets();
     this.hazards.clearAll();
     prompts.hide();
-    const info = floorInfo(this.roomIndex);
+    const node = this._node();
+    node.cleared = true; // backtracking: this room is done forever (ADR-0032)
+    const { isLastFloor } = floorMeta(this.floorIndex);
 
-    if (info.isBossRoom) {
+    if (node.type === 'boss') {
       hud.hideBossBars();
       audio.play('bossDie');
       this.input.rumble(0.8, 0.6, 300); // boss-down rumble
       this._countBossBeaten();
       // checkpoint: respawn at the next floor if you die from here on
-      if (!info.isLastRoom) this.checkpointRoom = this.roomIndex + 1;
-      hud.banner(info.isLastRoom ? 'BOSS DOWN — FINAL EXIT!' : 'BOSS DOWN — CHECKPOINT SAVED!');
+      if (!isLastFloor) this.checkpointFloor = this.floorIndex + 1;
+      hud.banner(isLastFloor ? 'BOSS DOWN — FINAL EXIT!' : 'BOSS DOWN — CHECKPOINT SAVED!');
       // a boss always heals you — NO more ground weapon chest (ADR-0030); spot is config-tunable
       this.spawnPickup('HEAL', PICKUPS.bossHealSpawn.x, PICKUPS.bossHealSpawn.z);
-      if (info.isLastRoom) {
-        // final boss: open the exit straight away, no offer (the run is ending)
-        this.room.openDoor();
+      if (isLastFloor) {
+        // final boss: open the WIN exit straight away, no offer (the run is ending)
+        this.room.openDoors();
+        this.room.openExit();
         audio.play('doorOpen');
         this.state = State.ROOM_CLEAR;
       } else {
@@ -476,7 +588,7 @@ export class Game {
         this._beginOffers({ boss: true });
       }
     } else {
-      // normal room: open the pick-1-of-3 OFFER screen INSTEAD of a ground stat-drop. The door stays
+      // normal room: open the pick-1-of-3 OFFER screen INSTEAD of a ground stat-drop. The doors stay
       // CLOSED + the room stays paused until every living player has picked (_finishRoomClear).
       audio.play('roomClear');
       this._beginOffers();
@@ -531,17 +643,18 @@ export class Game {
     this._presentNextOffer();
   }
 
-  /** all picks done: open the door + drop into ROOM_CLEAR (the normal-room equivalent of the boss path). */
+  /** all picks done: open the doors + drop into ROOM_CLEAR (the normal-room equivalent of the boss path). */
   _finishRoomClear() {
     if (!this._offerActive) return; // idempotent guard (the headless auto-resolve recurses)
     this._offerActive = false;
     this._offerPlayer = null;
-    this.room.openDoor();
+    this.room.openDoors();
+    if (this._node().type === 'boss') this.room.openExit(); // post-offer boss room: the way down opens
     audio.play('doorOpen');
     this.state = State.ROOM_CLEAR;
     this.input.consumeRestart(); // drain any reroll-R before ROOM_CLEAR / DEAD can read it
     prompts.hide();
-    hud.banner(nextIsBoss(this.roomIndex) ? '⚠  BOSS AHEAD  ⚠' : 'ROOM CLEAR — RUN!');
+    hud.banner('ROOM CLEAR — EXPLORE!');
   }
 
   /** the player picked an approach at the human decision-boss (A/B/C/D) */
@@ -553,6 +666,11 @@ export class Game {
       this._resolveHumanSkip(); // he waves you through — skip the fight, keep the reward
     } else {
       this.state = State.PLAYING; // he panics — the fight is on
+      // re-arm spawn grace at COMBAT start: the entry grace froze during the (untimed)
+      // choice overlay, and unlike other bosses the human fight has no banner-intro buffer
+      // for it to drain through — so anchor the ~1s protection to when the fight actually
+      // begins (he's standing on you), then it drains normally in PLAYING (ADR-0032).
+      for (const pl of this.players) if (pl.alive) pl.spawnSafe = ROOMS.entryGrace;
       audio.play(this.bosses[0]?.behavior?.roar ?? 'bossRoar');
       audio.setBossMusic('human'); // now the fight is real, swap to his theme
     }
@@ -573,18 +691,25 @@ export class Game {
   }
 
   _checkDoor() {
-    const atDoor =
-      this.room.door.active &&
-      this.players.some((p) => p.alive && circleVsBox(p.x, p.z, p.radius, this.room.door.box));
-    if (atDoor) {
-      if (floorInfo(this.roomIndex).isLastRoom) this._onWin();
-      else this.loadRoom(this.roomIndex + 1);
+    // per-side door triggers (ADR-0032): link doors walk the floor graph; the boss
+    // EXIT door descends to the next floor — or wins the run on the last one.
+    for (const [side, door] of Object.entries(this.room.doors)) {
+      if (!door.active) continue;
+      const hit = this.players.some((p) => p.alive && circleVsBox(p.x, p.z, p.radius, door.box));
+      if (!hit) continue;
+      if (door.kind === 'exit') {
+        if (floorMeta(this.floorIndex).isLastFloor) this._onWin();
+        else this._startFloor(this.floorIndex + 1);
+      } else {
+        this.loadNode(this._node().neighbours[side], OPPOSITE[side]);
+      }
+      return; // one transition per tick
     }
   }
 
   /** a player went down (1P) or the whole team wiped (co-op) */
   _onDefeat() {
-    const result = resolveDeath(this.lives, this.checkpointRoom);
+    const result = resolveDeath(this.lives, this.checkpointFloor);
     this.lives = result.lives;
     if (result.action === 'GAMEOVER') audio.stingerGameOver();
     else audio.play('lifeLost');
@@ -592,20 +717,20 @@ export class Game {
     if (result.action === 'RESPAWN') {
       hud.banner(`${this.coop ? 'TEAM DOWN' : 'LIFE LOST'} — ${this.lives} left`);
       setTimeout(() => hud.hideBanner(), 1400);
-      this._respawnAtCheckpoint(result.room);
+      this._respawnAtCheckpoint(result.floor);
     } else {
       this.state = State.DEAD;
-      const floorIdx = floorInfo(this.roomIndex).floorIndex;
-      saves.recordRun({ floor: floorIdx });
+      saves.recordRun({ floor: this.floorIndex });
       hud.banner('GAME OVER  —  press R  ·  [F] Resonance');
       prompts.hide();
     }
     this.refreshHud();
   }
 
-  _respawnAtCheckpoint(room) {
+  _respawnAtCheckpoint(floor) {
     for (const pl of this.players) pl.revive(0, 0);
-    this.loadRoom(room);
+    // the checkpoint floor regenerates fresh (ADR-0032): a death costs the explored map
+    this._startFloor(floor);
   }
 
   /** a boss fell — bump the count, unlock a weapon slot at the right milestones, award Echoes post-beat */
@@ -616,10 +741,9 @@ export class Game {
       for (const pl of this.players) pl.setSlotsUnlocked(slots);
       hud.toast(`WEAPON SLOT UNLOCKED! (${slots})`, true);
     }
-    const floorIdx = floorInfo(this.roomIndex).floorIndex;
-    saves.recordBossKill(floorIdx);
+    saves.recordBossKill(this.floorIndex);
     if (saves.get().gameBeaten) {
-      const earned = SAVES.echoesPerBoss + SAVES.echoesFloorBonus * floorIdx;
+      const earned = SAVES.echoesPerBoss + SAVES.echoesFloorBonus * this.floorIndex;
       hud.toast(`+${earned} Echoes`, false);
     }
   }

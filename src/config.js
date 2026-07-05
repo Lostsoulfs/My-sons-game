@@ -83,6 +83,7 @@ export const PALETTE = {
   npc: 0xd8c47a, // survivor = tan
   blood: 0xb20000,
   door: 0x36e0c0,
+  doorExit: 0xffc23a, // the boss room's descend/win exit — gold, reads as "this way out" (ADR-0032)
 };
 
 // ---- the "size ladder" (Stage 6 / ADR-0020) ----
@@ -159,23 +160,26 @@ export const NPC = {
 
 // ---- per-room tunables (counts/obstacles) ----
 export const ROOMS = {
-  baseEnemies: 3, // enemies in the first room of a floor
-  enemiesPerRoom: 0.8, // extra enemies added per room deeper in the floor (9 rooms now)
-  shooterFromRoom: 3, // shooters start appearing at this room-in-floor (1-based)
+  baseEnemies: 3, // enemies in a depth-0 room of a floor
+  enemiesPerRoom: 0.8, // extra enemies per step of graph DEPTH from the floor start (ADR-0032)
+  shooterFromRoom: 3, // shooters start appearing at this depth+1 (kept 1-based like the old room#)
   obstaclesMin: 2, // rubble boxes
   obstaclesMax: 5,
-  survivorRoomsInFloor: [2, 5, 7], // which normal rooms (0-based) hold a survivor
+  survivorsPerFloor: 2, // seeded survivor-room quota per floor (floorplan tags the rooms, ADR-0032)
+  // ADR-0032 spawn safety: connected rooms are entered from ANY side (N/S/E/W), so
+  // spawns must keep clear of the door you walk in through and you get a brief grace.
+  entryGrace: 1.0, // seconds of i-frames on room entry (no unfair contact hit if you spawn on a mob)
+  entryClearance: 6, // enemies/survivors never spawn within this radius of the entry point
 };
 
-// ---- progression: floors of 9 rooms + 1 boss room each ----
+// ---- progression: each floor is a CONNECTED room graph (ADR-0032, core/floorplan.js) ----
 export const PROGRESSION = {
-  roomsPerFloor: 9, // normal rooms before the boss
   // each floor: a boss type + difficulty + a color palette shared by the boss
   // AND that floor's monsters (so the monsters "reflect" their boss).
   floors: [
     {
       // diff is now computed from the DIFFICULTY curve (scaling.floorScale) by
-      // floorInfo() — set an optional `diffMul` here for a per-floor spike.
+      // floorMeta() — set an optional `diffMul` here for a per-floor spike.
       name: 'The Outskirts',
       boss: 'spider',
       palette: {
@@ -1124,6 +1128,27 @@ export const PICKUPS = {
   // dominates — keep this low so healing is earned, not spammed (bosses still guarantee a HEAL).
   mobHeartAmount: 1, // hearts restored by a mob-dropped HEART
   mobHeartDropRate: 0.02, // ~1-in-50 mobs drop a +1 heart (seeded via game.rng — reproducible)
+};
+
+// ---- ADR-0032: the CONNECTED floor map (core/floorplan.js — Isaac BFS+reject grid) ----
+// Each floor is a sparse TREE of rooms: boss at the farthest dead end, full backtracking,
+// one HEAL room on another dead end (the special-room seam Phase 6b extends). Room count
+// ramps with floor depth so later floors are bigger journeys (the research's triple ramp:
+// rooms + mob difficulty + offer tiers together).
+export const MAP = {
+  gridSize: 17, // cells per side — kept ≥ maxRooms so the straight-corridor fallback always fits exactly
+  rejectChance: 0.5, // the Isaac coin-flip reject — where the organic floor shapes come from
+  baseRooms: 7, // floor 0 room count (incl. start + boss)
+  roomsPerFloor: 1.5, // extra rooms per floor depth…
+  maxRooms: 16, // …capped so late floors stay brisk, not a slog
+  retries: 40, // expansion re-rolls before falling back to a straight corridor
+};
+
+// the HUD minimap painting the floorplan (ui/hud.js setMinimap; model = core/floorplan.js
+// minimapView). Identity of unexplored/special rooms is hidden by design (the fog is the hook).
+export const MINIMAP = {
+  cell: 12, // px per room cell
+  gap: 3, // px between cells
 };
 
 // ---- B9: room-clear upgrade OFFER screen (pick 1 of 3) ----

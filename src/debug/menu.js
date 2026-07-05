@@ -3,13 +3,12 @@
 // (?debug=1 or the backtick key), so it never loads during normal play.
 //
 // Everything drives the live game via window.__game, reusing existing methods
-// (loadRoom, setWeapon, spawnPickup, startRun, etc.).
+// (_startFloor, loadNode, spawnPickup, startRun, etc. — ADR-0032 replaced loadRoom).
 // =====================================================================
 
 import GUI from 'lil-gui';
 import {
   WEAPONS,
-  PROGRESSION,
   CAPS,
   GRAPHICS,
   CAMERA,
@@ -18,7 +17,7 @@ import {
   MSAA_SAMPLES,
   AO_QUALITIES,
 } from '../config.js';
-import { roomsPerFloor, floorCount, floorInfo } from '../core/progression.js';
+import { floorCount } from '../core/progression.js';
 import { WEAPON_TYPES } from '../entities/pickups.js';
 import { saves } from '../core/saves.js';
 
@@ -43,26 +42,24 @@ export function initDebugMenu(game) {
     enemies: 0,
   };
 
-  // ---- World ----
+  // ---- World (ADR-0032: floors are room graphs — jump by floor/boss, not index) ----
   const world = gui.addFolder('World');
   world.add(state, 'floor', 0, floorCount() - 1, 1).name('Floor');
-  world.add(state, 'room', 0, roomsPerFloor() - 1, 1).name('Room (last = boss)');
   world
     .add(
       {
         go() {
-          game.loadRoom(state.floor * roomsPerFloor() + state.room);
+          game._startFloor(state.floor); // fresh connected map for that floor
         },
       },
       'go',
     )
-    .name('▶ Go to room');
+    .name('▶ Go to floor');
   world
     .add(
       {
         boss() {
-          const f = floorInfo(game.roomIndex).floorIndex;
-          game.loadRoom(f * roomsPerFloor() + PROGRESSION.roomsPerFloor);
+          game.loadNode(game.floorplan.bossId, null); // straight to this floor's boss den
         },
       },
       'boss',

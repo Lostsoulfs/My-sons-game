@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { WEAPONS, PROGRESSION } from '../src/config.js';
+import { MAP, WEAPONS, PROGRESSION } from '../src/config.js';
 
 // Config invariant tests for WEAPONS and PROGRESSION.
 // Pattern ported from the config harness in Lost-secuirty/Demo-math-slot-test-only.
@@ -77,9 +77,15 @@ describe('WEAPONS config invariants', () => {
 });
 
 describe('PROGRESSION config invariants', () => {
-  it('roomsPerFloor is a positive integer', () => {
-    expect(PROGRESSION.roomsPerFloor).toBeGreaterThan(0);
-    expect(Number.isInteger(PROGRESSION.roomsPerFloor)).toBe(true);
+  it('the connected-map knobs are sane (ADR-0032 replaced roomsPerFloor)', () => {
+    expect(MAP.baseRooms).toBeGreaterThan(1);
+    expect(MAP.maxRooms).toBeGreaterThanOrEqual(MAP.baseRooms);
+    expect(MAP.rejectChance).toBeGreaterThan(0);
+    expect(MAP.rejectChance).toBeLessThan(1);
+    // grid must fit maxRooms as a straight LINE, not just by area: the degenerate
+    // corridor fallback (floorplan.js) lays rooms along one row, so gridSize < maxRooms
+    // would silently under-fill it and break the exact-room-count contract (ADR-0032).
+    expect(MAP.gridSize).toBeGreaterThanOrEqual(MAP.maxRooms);
   });
 
   it('there is at least one floor', () => {

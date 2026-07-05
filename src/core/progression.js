@@ -1,11 +1,9 @@
 // =====================================================================
 // progression.js — pure helpers for "where am I in the run?" (no imports
-// except config). Each floor = PROGRESSION.roomsPerFloor normal rooms + 1 boss
-// room. Rooms are numbered globally from 0. With roomsPerFloor = 9 (10/floor):
-//
-//   floor 0: rooms 0..8 (normal) + 9 (BOSS)
-//   floor 1: rooms 10..18 + 19 (BOSS)
-//   ...
+// except config). Since ADR-0032 each floor is a CONNECTED map (a room graph
+// from core/floorplan.js) — room-level facts (depth, isBoss) live on the graph
+// node; this file keeps the FLOOR-level identity: definition, difficulty,
+// boss-count unlocks, and the death/checkpoint resolver.
 // =====================================================================
 
 import { PROGRESSION, CAPS, DIFFICULTY } from '../config.js';
@@ -21,18 +19,8 @@ export function weaponSlotsForBosses(bossesBeaten) {
   return Math.min(CAPS.maxWeaponSlots, 1 + unlocked);
 }
 
-/** rooms per floor including the boss room */
-export function roomsPerFloor() {
-  return PROGRESSION.roomsPerFloor + 1;
-}
-
 export function floorCount() {
   return PROGRESSION.floors.length;
-}
-
-/** total rooms across every floor */
-export function totalRooms() {
-  return roomsPerFloor() * floorCount();
 }
 
 /** the floor definition for a floor index (clamped to the last floor) */
@@ -42,27 +30,16 @@ export function floorDef(floorIndex) {
 }
 
 /**
- * Describe a global room index.
- * @param {number} roomIndex 0-based global room number
- * @returns {{floorIndex:number, roomInFloor:number, isBossRoom:boolean, isLastRoom:boolean, diff:number, def:object}}
+ * Describe a FLOOR (ADR-0032 — room-level facts come from the floorplan node).
+ * @param {number} floorIndex 0-based floor
+ * @returns {{def:object, diff:number, isLastFloor:boolean}}
  */
-export function floorInfo(roomIndex) {
-  const per = roomsPerFloor();
-  const floorIndex = Math.floor(roomIndex / per);
-  const roomInFloor = roomIndex % per;
-  const isBossRoom = roomInFloor === PROGRESSION.roomsPerFloor;
-  const isLastFloor = floorIndex >= floorCount() - 1;
-  const isLastRoom = isLastFloor && isBossRoom;
+export function floorMeta(floorIndex) {
   const def = floorDef(floorIndex);
   // difficulty is the DIFFICULTY curve (one knob for the whole run), times an
   // optional per-floor `diffMul` spike. Drives boss HP / ring density / enemy count.
   const diff = floorScale(floorIndex, DIFFICULTY) * (def.diffMul ?? 1);
-  return { floorIndex, roomInFloor, isBossRoom, isLastRoom, diff, def };
-}
-
-/** true if the room AFTER this one is a boss room (for the "BOSS AHEAD" warning) */
-export function nextIsBoss(roomIndex) {
-  return floorInfo(roomIndex + 1).isBossRoom && !floorInfo(roomIndex).isBossRoom;
+  return { def, diff, isLastFloor: floorIndex >= floorCount() - 1 };
 }
 
 /**
@@ -118,14 +95,16 @@ export function humanRallyTarget(hpFrac) {
 
 /**
  * Decide what happens when the player dies. PURE.
- * Lose a life; if any remain, respawn at the checkpoint room; otherwise it's
- * game over (which the caller turns into a full restart).
+ * Lose a life; if any remain, respawn at the checkpoint FLOOR's start room
+ * (ADR-0032: checkpoints are floors — the respawned floor regenerates fresh,
+ * so a death costs the explored map); otherwise it's game over (which the
+ * caller turns into a full restart).
  * @param {number} lives lives BEFORE this death
- * @param {number} checkpointRoom room index to respawn at
- * @returns {{lives:number, action:'RESPAWN'|'GAMEOVER', room:number}}
+ * @param {number} checkpointFloor floor index to respawn at
+ * @returns {{lives:number, action:'RESPAWN'|'GAMEOVER', floor:number}}
  */
-export function resolveDeath(lives, checkpointRoom) {
+export function resolveDeath(lives, checkpointFloor) {
   const remaining = lives - 1;
-  if (remaining <= 0) return { lives: 0, action: 'GAMEOVER', room: 0 };
-  return { lives: remaining, action: 'RESPAWN', room: checkpointRoom };
+  if (remaining <= 0) return { lives: 0, action: 'GAMEOVER', floor: 0 };
+  return { lives: remaining, action: 'RESPAWN', floor: checkpointFloor };
 }

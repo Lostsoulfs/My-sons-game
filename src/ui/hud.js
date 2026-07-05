@@ -4,7 +4,7 @@
 // red blood-splatter flash.
 // =====================================================================
 
-import { PROGRESSION } from '../config.js';
+import { MINIMAP } from '../config.js';
 import { settings } from '../systems/settings.js';
 
 const $ = (id) => document.getElementById(id);
@@ -36,15 +36,47 @@ export const hud = {
     if (el) el.textContent = `LIVES ${'🔺'.repeat(Math.max(0, n))}`;
   },
 
-  // info = floorInfo(roomIndex); weaponName = e.g. "Shotgun"
+  // info = { floorIndex, isBossRoom, explored, total } (ADR-0032 connected map)
   setRoom(info, weaponName) {
     const el = $('room');
     if (!el) return;
     const floor = info.floorIndex + 1;
-    const where = info.isBossRoom
-      ? 'BOSS'
-      : `ROOM ${info.roomInFloor + 1}/${PROGRESSION.roomsPerFloor}`;
+    const where = info.isBossRoom ? 'BOSS' : `EXPLORED ${info.explored}/${info.total}`;
     el.textContent = `FLOOR ${floor} · ${where}${weaponName ? ` · ${weaponName}` : ''}`;
+  },
+
+  // the connected-floor minimap (ADR-0032): a pooled grid of absolutely-positioned
+  // cells painted from the PURE minimapView model — explored rooms + adjacent
+  // unknowns, special-room identity hidden. Event-driven via refreshHud, never per-tick.
+  setMinimap(view) {
+    const el = $('minimap');
+    if (!el || !view) return;
+    const { cell, gap } = MINIMAP;
+    // grow the cell pool as needed (rooms only ever get revealed within a floor;
+    // floor changes shrink the count — extras just hide)
+    while (el.children.length < view.cells.length) {
+      const div = document.createElement('div');
+      div.className = 'mm-cell';
+      el.appendChild(div);
+    }
+    for (let i = 0; i < el.children.length; i++) {
+      const div = el.children[i];
+      const c = view.cells[i];
+      if (!c) {
+        div.style.display = 'none';
+        continue;
+      }
+      div.style.display = 'block';
+      div.className = `mm-cell mm-${c.kind}`;
+      // size AND position from config.MINIMAP.cell (single source of truth — the CSS no
+      // longer hardcodes a width/height that could silently drift from the layout math)
+      div.style.width = `${cell}px`;
+      div.style.height = `${cell}px`;
+      div.style.left = `${c.gx * (cell + gap)}px`;
+      div.style.top = `${c.gy * (cell + gap)}px`;
+    }
+    el.style.width = `${view.w * (cell + gap) - gap}px`;
+    el.style.height = `${view.h * (cell + gap) - gap}px`;
   },
 
   // Render 1 or 2 boss HP bars (the dog/cat duo uses two). Each row shows the
