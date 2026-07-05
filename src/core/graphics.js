@@ -61,9 +61,12 @@ export function resolveGraphicsTier({ param, renderer, webdriver } = {}) {
  * @param {object} target the GRAPHICS object to downgrade
  * @param {object} preset the sparse override (e.g. GRAPHICS.lowPreset)
  */
+const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
 export function applyGraphicsPreset(target, preset) {
   if (!preset || typeof preset !== 'object') return target;
   for (const key of Object.keys(preset)) {
+    if (UNSAFE_KEYS.has(key)) continue; // never walk the prototype chain (prototype-pollution guard)
     const val = preset[key];
     if (isPlainObject(val) && isPlainObject(target[key])) applyGraphicsPreset(target[key], val);
     else target[key] = val;

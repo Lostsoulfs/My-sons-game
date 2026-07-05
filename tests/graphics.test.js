@@ -139,6 +139,14 @@ describe('applyGraphicsPreset', () => {
     expect(target.pixelRatioCap).toBe(2);
   });
 
+  it('does not pollute the prototype chain via __proto__ / constructor keys', () => {
+    // a malicious preset shaped to walk the prototype chain must be ignored
+    const evil = JSON.parse('{"__proto__": {"pwned": true}, "constructor": {"x": 1}}');
+    applyGraphicsPreset({}, evil);
+    expect({}.pwned).toBeUndefined(); // Object.prototype untouched
+    expect(Object.prototype.pwned).toBeUndefined();
+  });
+
   it('the real GRAPHICS.lowPreset actually turns the heavy knobs down', () => {
     const g = JSON.parse(JSON.stringify(GRAPHICS)); // clone so we never mutate the shared config
     applyGraphicsPreset(g, GRAPHICS.lowPreset);
