@@ -6,7 +6,7 @@
 // boss-count unlocks, and the death/checkpoint resolver.
 // =====================================================================
 
-import { PROGRESSION, CAPS, DIFFICULTY } from '../config.js';
+import { PROGRESSION, CAPS, DIFFICULTY, MODES } from '../config.js';
 import { floorScale } from './scaling.js';
 
 /**
@@ -23,22 +23,45 @@ export function floorCount() {
   return PROGRESSION.floors.length;
 }
 
-/** the floor definition for a floor index (clamped to the last floor) */
-export function floorDef(floorIndex) {
+/**
+ * CP-E (ADR-0043): resolve the REQUESTED run mode against the save. Endless is a
+ * post-first-win reward — pre-beat (or on junk input) it always falls back to story,
+ * so the gate holds even if a caller (debug console, hand-edited UI) asks directly.
+ * @param {string} requested 'story' | 'endless' (anything else → 'story')
+ * @param {boolean} gameBeaten save.gameBeaten
+ * @returns {'story'|'endless'}
+ */
+export function resolveMode(requested, gameBeaten) {
+  return requested === 'endless' && gameBeaten ? 'endless' : 'story';
+}
+
+/** the floor definition for a floor index — story CLAMPS to the last floor; endless CYCLES
+ *  the whole roster (bosses rotate every loop instead of Enforcer-forever). */
+export function floorDef(floorIndex, mode = 'story') {
   const f = PROGRESSION.floors;
+  if (mode === 'endless') return f[floorIndex % f.length];
   return f[Math.min(floorIndex, f.length - 1)];
 }
 
 /**
  * Describe a FLOOR (ADR-0032 — room-level facts come from the floorplan node).
+ * CP-E (ADR-0043): in ENDLESS the run never has a last floor (no win exit — the loop is the
+ * mode), defs cycle, and past the story floors the diff takes an EXTRA per-floor ramp
+ * (MODES.endless.rampMul) on top of floorScale's own growth. Story is bit-identical to before.
  * @param {number} floorIndex 0-based floor
+ * @param {'story'|'endless'} mode
  * @returns {{def:object, diff:number, isLastFloor:boolean}}
  */
-export function floorMeta(floorIndex) {
-  const def = floorDef(floorIndex);
+export function floorMeta(floorIndex, mode = 'story') {
+  const def = floorDef(floorIndex, mode);
   // difficulty is the DIFFICULTY curve (one knob for the whole run), times an
   // optional per-floor `diffMul` spike. Drives boss HP / ring density / enemy count.
-  const diff = floorScale(floorIndex, DIFFICULTY) * (def.diffMul ?? 1);
+  let diff = floorScale(floorIndex, DIFFICULTY) * (def.diffMul ?? 1);
+  if (mode === 'endless') {
+    const past = floorIndex - (floorCount() - 1);
+    if (past > 0) diff *= Math.pow(MODES.endless.rampMul, past);
+    return { def, diff, isLastFloor: false };
+  }
   return { def, diff, isLastFloor: floorIndex >= floorCount() - 1 };
 }
 

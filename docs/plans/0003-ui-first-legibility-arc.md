@@ -1,7 +1,9 @@
 # 0003 — UI-first legibility → combat cleanup → demon companion → models → modes
 
-- **Status:** In progress — CP-A ✅ (#89), CP-B ✅ (ADR-0039), CP-D plumbing ✅ (ADR-0041,
-  real art owner-gated), CP-C ✅ (ADR-0042, demon companion); CP-E (mode select) last.
+- **Status:** ✅ **COMPLETE** (2026-07-05) — CP-A (#89), CP-B (ADR-0039), CP-C (ADR-0042,
+  demon companion), CP-D plumbing (ADR-0041 — real GLB art remains owner-gated), CP-E
+  (ADR-0043, Story/Endless). Open tails: art picks (Scott), endless ramp tuning +
+  boss-phase authoring (playtest), companion co-op question (deferred — 1P only for now).
 - **Date:** 2026-07-05
 - **Follows:** [0002 — Weapon & Economy Redesign](0002-weapon-economy-redesign.md).
 

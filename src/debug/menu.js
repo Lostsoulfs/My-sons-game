@@ -89,7 +89,13 @@ export function initDebugMenu(game) {
     .add(
       {
         restart() {
-          game.startRun(game.coop, game.player?.character ?? 'dad');
+          // preserve character AND run mode (CP-E) — the startRun-signature-ripple lesson
+          game.startRun(
+            game.coop,
+            game.player?.character ?? 'dad',
+            undefined,
+            game.mode ?? 'story',
+          );
         },
       },
       'restart',

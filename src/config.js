@@ -393,6 +393,19 @@ export const UPGRADES = {
   speed: { maxBonus: 0.6, half: 12 }, // speed = base × (1 + bonus) → asymptote +60%
 };
 
+// ---- CP-E (ADR-0043): run MODES — Story vs Endless ----
+// STORY = the finite run (win at the last floor's exit) — the game as it's always been; the
+// single fixed difficulty stays untouched (modes add modifiers, difficulty never forks).
+// ENDLESS = a post-first-win scaffold: floors LOOP (the floor defs cycle, so bosses rotate)
+// and the run never "wins" — difficulty keeps climbing on the raw floorIndex PLUS this extra
+// per-floor ramp once past the story floors. Numbers are a SCAFFOLD (plan 0003 CP-E): the real
+// ramp + boss-phase authoring are tuned on arrival, in playtests.
+export const MODES = {
+  endless: {
+    rampMul: 1.12, // extra ×/floor past the story floors (on top of floorScale's own growth)
+  },
+};
+
 // ---- difficulty curve (one knob for the whole run — see scaling.js floorScale) ----
 // diff(floorIndex) = base × (1 + growth)^floorIndex, applied to the SAFE knobs only
 // (boss HP, ring density, enemy counts — never bullet speed). Higher growth = a
