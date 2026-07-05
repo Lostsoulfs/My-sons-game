@@ -1,7 +1,7 @@
 # 0003 — UI-first legibility → combat cleanup → demon companion → models → modes
 
 - **Status:** In progress — CP-A ✅ (#89), CP-B ✅ (ADR-0039), CP-D plumbing ✅ (ADR-0041,
-  real art owner-gated); CP-C/E next.
+  real art owner-gated), CP-C ✅ (ADR-0042, demon companion); CP-E (mode select) last.
 - **Date:** 2026-07-05
 - **Follows:** [0002 — Weapon & Economy Redesign](0002-weapon-economy-redesign.md).
 

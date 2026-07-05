@@ -36,8 +36,7 @@ import {
   OPPOSITE,
 } from './core/floorplan.js';
 import { Player } from './entities/player.js';
-// NOTE: the AI Ally (entities/ally.js) is DORMANT since CP5 — kept for a future PET system, not
-// spawned in play. 1P is solo (chosen character); 2P is two full Players (Dad + Son).
+import { Demon } from './entities/demon.js'; // CP-C (ADR-0042): the old AI Ally, reborn — 1P companion
 import { Enemy } from './entities/enemies.js';
 import { Bullets } from './entities/bullets.js';
 import { Hazards } from './systems/hazards.js';
@@ -104,6 +103,10 @@ export class Game {
     this.players = []; // [p1] or [p1, p2]
     this.player = null; // = players[0]
     this.player2 = null;
+    // CP-C (ADR-0042): the demon companion — 1P only, spawned in startRun once its Resonance
+    // node is bought. Deliberately NOT in this.players (that array drives offers, revives, and
+    // enemy targeting — the demon takes part in none of those).
+    this.demon = null;
     this.state = State.BOOT;
   }
 
@@ -171,6 +174,12 @@ export class Game {
     } else {
       this.player = this._makePlayer(character, 'both', baseline);
       this.players = [this.player];
+      // CP-C (ADR-0042): the demon companion — 1P only (2P already fields Dad + Son), and only
+      // once the 'demon' Resonance node is bought (baseline.demon rides baselineStacks, so the
+      // first-win all-zero gate covers it). Fed the RAW baseline — deliberately NOT the player's
+      // merged copy, which carries the Dad/Son ±trait (a trait is not a permanent meta buff).
+      // It stays OUT of this.players: that array drives offers/revives/enemy targeting.
+      if ((baseline.demon ?? 0) > 0) this.demon = new Demon(this.scene, baseline);
     }
     hud.setCoop(coop);
     this._startFloor(0);
@@ -202,8 +211,13 @@ export class Game {
       this.player2.dispose(this.scene);
       this.scene.remove(this.player2.mesh);
     }
+    if (this.demon) {
+      this.demon.dispose(); // frees the GLB mixer, if any (CP-C)
+      this.scene.remove(this.demon.mesh);
+    }
     this.player = null;
     this.player2 = null;
+    this.demon = null;
   }
 
   /** closest living player to a point (null if everyone is down) */
@@ -289,6 +303,8 @@ export class Game {
       // brief spawn grace: no free contact hit if a mob/boss sits on the entry (ADR-0032)
       pl.spawnSafe = pl.alive ? ROOMS.entryGrace : 0;
     });
+    // CP-C: the demon heels through the door too — reset just off the entry, behind its keeper
+    this.demon?.reset(at.x + (at.spread === 'x' ? -3.5 : 0), at.z + (at.spread === 'z' ? -3.5 : 0));
 
     const meta = floorMeta(this.floorIndex);
 
@@ -395,6 +411,7 @@ export class Game {
     showPauseMenu({
       players: this.players,
       coop: this.coop,
+      demon: this.demon ? this.demon.statsSnapshot() : null, // CP-C: the seal's inherited stats
       mapView: minimapView(this.floorplan, { currentId: this.nodeId, explored: this.explored }),
       onResume: () => this._resume(),
     });
@@ -435,6 +452,7 @@ export class Game {
 
     if (this.state === State.PLAYING) {
       for (const pl of this.players) if (pl.alive) pl.update(dt, this);
+      this.demon?.update(dt, this); // CP-C: heels + fires alongside its keeper
       if (this.duo) this.duo.update(dt); // alternating aggression + enrage-on-death
       for (const e of this.enemies) e.update(dt, this);
       this.bullets.update(dt, this);
@@ -462,6 +480,7 @@ export class Game {
       else if (this.enemies.length === 0) this._onRoomClear();
     } else if (this.state === State.ROOM_CLEAR) {
       for (const pl of this.players) if (pl.alive) pl.update(dt, this);
+      this.demon?.update(dt, this); // CP-C: keeps heeling between fights (fires if stragglers spawn)
       this.bullets.update(dt, this);
       this._handlePickups();
       this._handleSurvivors(dt); // survivors stay helpable after the fight is over
@@ -481,7 +500,11 @@ export class Game {
     } else if (this.state === State.HUMAN_APPROACH) {
       // ADR-0033 walk-up: the PLAYERS + their bullets tick (you approach on foot, can even
       // fire) but the human boss does NOT — he stands inert + invuln until the choice resolves.
+      // The demon heels through the approach too. NOTE: the human boss IS in game.enemies here
+      // (spawner addEnemy; this.bosses is just a filtered view) — the demon holds fire only
+      // because _nearestEnemy skips invuln targets (adversarial-review find, ADR-0042).
       for (const pl of this.players) if (pl.alive) pl.update(dt, this);
+      this.demon?.update(dt, this);
       this.bullets.update(dt, this);
       this._updateHumanApproach(dt);
     } else if (this.state === State.HUMAN_CHOICE) {

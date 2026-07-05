@@ -47,3 +47,4 @@ below).
 | [0039](0039-orbital-to-passive-aura-and-visible-armor.md) | Orbital Blade → passive Blade Aura; Guard → visible Atomic Armor plates    | Accepted |
 | [0040](0040-boss-phase-flips.md)                          | Boss HP-gated phase flips — wire the shelved emitters (spiral/flower/arc)  | Proposed |
 | [0041](0041-cp-d-character-model-plumbing.md)             | CP-D character-model plumbing — GLB-ready + a code-only silhouette fix     | Proposed |
+| [0042](0042-demon-companion.md)                           | Demon companion — permanent-buff inheritance, Echoes unlock (Broken Seal)  | Proposed |

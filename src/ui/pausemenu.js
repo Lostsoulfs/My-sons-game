@@ -9,7 +9,7 @@
 
 import { hud } from './hud.js';
 import { settings } from '../systems/settings.js';
-import { statRows } from '../core/statsPanel.js';
+import { statRows, demonRows } from '../core/statsPanel.js';
 import { saves } from '../core/saves.js';
 import { META_UPGRADES, WEAPONS } from '../config.js';
 
@@ -17,7 +17,7 @@ const $ = (id) => document.getElementById(id);
 const cap = (s) => (typeof s === 'string' && s ? s[0].toUpperCase() + s.slice(1) : s);
 const weaponName = (key) => WEAPONS[key]?.name || cap(key);
 
-let _ctx = null; // { players, coop, mapView, onResume }
+let _ctx = null; // { players, coop, demon?, mapView, onResume } — demon = its statsSnapshot (CP-C)
 
 export function showPauseMenu(ctx = {}) {
   _ctx = ctx;
@@ -134,6 +134,21 @@ function renderStats(body) {
     }
     cols.appendChild(col);
   });
+  // CP-C (ADR-0042): the demon companion's slim column — the multipliers the seal feeds it.
+  // Raw numbers only (no-hand-holding rule); present only when a demon is out this run.
+  if (_ctx?.demon) {
+    const col = el('div', 'pause-statcol');
+    col.appendChild(el('div', 'pause-statcol-head', '😈 Demon'));
+    for (const sec of demonRows(_ctx.demon)) {
+      col.appendChild(
+        section(
+          sec.title,
+          sec.rows.map((r) => row(r.label, r.value)),
+        ),
+      );
+    }
+    cols.appendChild(col);
+  }
   body.appendChild(cols);
 }
 
