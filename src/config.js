@@ -149,18 +149,33 @@ export const PLAYER = {
 // `trait` is a small permanent +/− baseline stat mod, merged into the Echoes baseline in
 // game.startRun so it flows through player._recomputeUpgrades like any Resonance bonus (positive =
 // better on every axis: +damage, +speed, +fireRate = faster). First-pass numbers — tune in playtest.
+//
+// CP-D (ADR-0041): `modelKey` is now 'dad'/'son' — OWN keys, distinct from the dormant `ally.js`'s
+// 'ally' key. Before this, Son's modelKey WAS 'ally', so pointing MODELS.ally at a real GLB (to give
+// Son a face) would ALSO silently reskin the future CP-C demon companion the moment it's revived —
+// they shared one asset slot. `meshRadius`/`meshHeight` are VISUAL-ONLY silhouette knobs (a 6-MoE
+// design-panel pick: Dad reads broad/planted, Son reads lean/quick) — deliberately separate from
+// `PLAYER.radius` (the real hit-circle, used unchanged for both so 2P stays fair). `prop` adds one
+// procedural silhouette tell per character (a hat-brim disc for Dad, a goggle-ring for Son) so they
+// don't read as a plain color-swap even before any GLB lands (characterMesh.js `makeCharacter`).
 export const CHARACTERS = {
   dad: {
     name: 'Dad',
-    modelKey: 'player', // blue silhouette
+    modelKey: 'dad', // GLB slot: config.MODELS.dad (null today = procedural fallback)
     color: PALETTE.player,
+    meshRadius: PLAYER.radius * 1.12, // visual only — broader/planted silhouette
+    meshHeight: PLAYER.height * 0.95, // visual only — a touch shorter
+    prop: 'brim', // hat-brim disc (top-down "planted" read)
     starter: 'pistol', // ballistic — reloads
     trait: { damage: 0.1, speed: -0.05 }, // heavier hitter, a touch slower
   },
   son: {
     name: 'Son',
-    modelKey: 'ally', // green silhouette (the old AI-ally mesh is now the Son)
+    modelKey: 'son', // GLB slot: config.MODELS.son (null today = procedural fallback)
     color: PALETTE.ally,
+    meshRadius: PLAYER.radius * 0.88, // visual only — leaner silhouette
+    meshHeight: PLAYER.height * 1.05, // visual only — a touch taller
+    prop: 'goggles', // goggle-ring (top-down "gadget kid" read)
     starter: 'laserpistol', // energy — overheats
     trait: { damage: -0.05, speed: 0.1, fireRate: 0.05 }, // faster + quicker trigger, lighter shots
   },
@@ -1534,8 +1549,12 @@ export const META_UPGRADES = [
 // To use a real model: drop the .glb in public/models/ and set its path,
 // e.g.  chaser: 'models/demon.glb'
 export const MODELS = {
-  player: null,
-  ally: null,
+  // CP-D (ADR-0041): Dad + Son each get their OWN slot (renamed from the old shared
+  // 'player'/'ally' pair — see CHARACTERS above). 'ally' stays reserved for the dormant
+  // Ally class (CP-C's future demon companion) so it never collides with Son's model.
+  dad: null,
+  son: null,
+  ally: null, // reserved: CP-C demon companion (entities/ally.js, dormant since CP5)
   chaser: null,
   shooter: null,
   spider: null,
