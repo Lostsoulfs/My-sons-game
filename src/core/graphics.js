@@ -82,3 +82,63 @@ export function applyGraphicsPreset(target, preset) {
 function isPlainObject(v) {
   return v != null && typeof v === 'object' && !Array.isArray(v);
 }
+
+// ---- adaptive graphics guard (FPS-3): downgrade by MEASURING, not by guessing the GPU ----
+// The boot tier (resolveGraphicsTier) can only see a renderer string + webdriver flag, and a real
+// weak GPU (an iGPU / old laptop) looks exactly like a strong one there — so it boots 'high' and
+// chugs. The only thing that tells the truth is the actual frame rate. This watchdog watches it.
+
+/**
+ * A pure, DOM-free frame-time watchdog. Feed it each frame's wall-clock `frameMs` and whether the
+ * tab is `visible`; it returns `true` EXACTLY ONCE — on the frame a sustained-low-FPS downgrade
+ * should fire — then stays latched (`false` forever after). The caller does the actual downgrade
+ * (drop the live render knobs), so this stays testable without a GL context.
+ *
+ * Robustness (each guards a real false-positive):
+ *  - hidden frames are ignored — a backgrounded tab throttles rAF to ~1Hz, which is NOT GPU lag;
+ *  - a warm-up (`graceMs`) skips the janky first frames (shader compile / asset decode);
+ *  - a single hitch over `maxFrameMs` (tab-return, GC, breakpoint) is dropped AND resets the
+ *    current window, so one spike can never trip the downgrade.
+ * A fast GPU never sustains < `minFps`, so it never fires — the player's real machine is untouched.
+ *
+ * @param {{minFps?:number, windowMs?:number, graceMs?:number, maxFrameMs?:number}} [cfg]
+ * @returns {((frameMs:number, visible:boolean)=>boolean) & {hasFired:()=>boolean}}
+ */
+export function createPerfGuard({
+  minFps = 40,
+  windowMs = 2000,
+  graceMs = 1500,
+  maxFrameMs = 500,
+} = {}) {
+  let warmed = 0; // visible ms accumulated during the warm-up
+  let winMs = 0; // visible ms in the current measuring window
+  let winFrames = 0; // frames counted in the current window
+  let fired = false;
+
+  const sample = (frameMs, visible) => {
+    if (fired) return false;
+    // ignore hidden frames (rAF throttle) and pathological hitches — neither is steady-state lag
+    if (!visible || !(frameMs > 0) || frameMs > maxFrameMs) {
+      winMs = 0;
+      winFrames = 0;
+      return false;
+    }
+    if (warmed < graceMs) {
+      warmed += frameMs; // still warming up — don't measure the boot-time jank
+      return false;
+    }
+    winMs += frameMs;
+    winFrames += 1;
+    if (winMs < windowMs) return false; // window not full yet
+    const fps = (winFrames * 1000) / winMs;
+    winMs = 0;
+    winFrames = 0; // start a fresh window either way
+    if (fps < minFps) {
+      fired = true;
+      return true;
+    }
+    return false;
+  };
+  sample.hasFired = () => fired;
+  return sample;
+}
