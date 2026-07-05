@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ARENA, CAMERA, PLAYER, ALLY, ENEMY, BOSS } from '../src/config.js';
+import { ARENA, CAMERA, PLAYER, DEMON, ENEMY, BOSS } from '../src/config.js';
 
 // Stage 6 / ADR-0020 — locks the "scale pass" intent so a future edit can't quietly
 // undo it: a roomier arena, a camera sized to fit it, and a clear size ladder
@@ -30,8 +30,11 @@ describe('CAMERA fits the arena', () => {
 });
 
 describe('size ladder: player < basic mob < boss (threat reads by size)', () => {
-  it('player and ally share the smallest collision radius', () => {
-    expect(PLAYER.radius).toBe(ALLY.radius);
+  it('the demon companion reads bulkier than a player but stays under the mobs (CP-C)', () => {
+    // (was: player === ally radius — the AI Ally became the Demon, ADR-0042. Its radius is
+    // VISUAL-ONLY: nothing collides with it, but the size still has to read "companion, not threat".)
+    expect(DEMON.radius).toBeGreaterThanOrEqual(PLAYER.radius);
+    expect(DEMON.radius).toBeLessThan(ENEMY.chaser.radius);
   });
 
   it('basic mobs are at least as big as the player, chaser < shooter', () => {

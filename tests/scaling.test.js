@@ -4,7 +4,6 @@ import {
   floorScale,
   hardnessFacet,
   marginalBonus,
-  allyShare,
   metaLevelBonus,
   metaBreakpointBonus,
   metaLevelCost,
@@ -230,15 +229,5 @@ describe('metaLevelCost (steep Echo cost, doubled on breakpoints)', () => {
   });
 });
 
-describe('allyShare (B9 — the AI ally gets a fraction of the player bonus)', () => {
-  it('returns the configured fraction of a bonus', () => {
-    expect(allyShare(1.0, 0.2)).toBeCloseTo(0.2); // player +100% → ally +20%
-    expect(allyShare(0.5, 0.2)).toBeCloseTo(0.1);
-    expect(allyShare(2.0, 0)).toBe(0);
-  });
-
-  it('clamps the share to 0..1 (never a debuff, never an amplifier)', () => {
-    expect(allyShare(1.0, -1)).toBe(0);
-    expect(allyShare(1.0, 5)).toBe(1.0);
-  });
-});
+// (allyShare's suite lived here until CP-C — the AI Ally became the Demon companion; its
+// permanent-baseline inheritance contract is locked in tests/demonInherit.test.js instead.)

@@ -150,10 +150,9 @@ export const PLAYER = {
 // game.startRun so it flows through player._recomputeUpgrades like any Resonance bonus (positive =
 // better on every axis: +damage, +speed, +fireRate = faster). First-pass numbers — tune in playtest.
 //
-// CP-D (ADR-0041): `modelKey` is now 'dad'/'son' — OWN keys, distinct from the dormant `ally.js`'s
-// 'ally' key. Before this, Son's modelKey WAS 'ally', so pointing MODELS.ally at a real GLB (to give
-// Son a face) would ALSO silently reskin the future CP-C demon companion the moment it's revived —
-// they shared one asset slot. `meshRadius`/`meshHeight` are VISUAL-ONLY silhouette knobs (a 6-MoE
+// CP-D (ADR-0041): `modelKey` is now 'dad'/'son' — OWN keys. Before this, Son's modelKey was
+// 'ally' (the old AI-ally slot — since reborn as the CP-C demon, entities/demon.js), so one real
+// GLB would have silently reskinned BOTH. `meshRadius`/`meshHeight` are VISUAL-ONLY silhouette knobs (a 6-MoE
 // design-panel pick: Dad reads broad/planted, Son reads lean/quick) — deliberately separate from
 // `PLAYER.radius` (the real hit-circle, used unchanged for both so 2P stays fair). `prop` adds one
 // procedural silhouette tell per character (a hat-brim disc for Dad, a goggle-ring for Son) so they
@@ -181,18 +180,29 @@ export const CHARACTERS = {
   },
 };
 
-// ---- ally (dormant since CP5 — the class stays for a future PET system; not spawned in play) ----
-export const ALLY = {
-  radius: 0.85, // matches the player (size ladder)
-  height: 2.2,
+// ---- CP-C (ADR-0042): the DEMON companion — the old AI Ally, reborn ----
+// A sealed portal-monster that didn't want the war (STORY.md), bought with Echoes (the 'demon'
+// META_UPGRADES node) and fighting beside the SOLO player only (2P already fields Dad + Son).
+// It makes NO picks, takes NOTHING from the run, and carries no gun — it spits a leashed energy
+// bolt. It inherits `inheritShare` of the player's PERMANENT (Resonance) baseline ONLY
+// (core/demonInherit.js), so it grows exactly when your long-term progression does.
+// Untargetable by construction: it's not in game.players, so enemies/bosses never aim at it.
+export const DEMON = {
+  radius: 0.95, // hunched but bulky — reads bigger than the players (visual only; never hit)
+  height: 2.0,
   speed: 9,
-  followDist: 4.5, // tries to stay this close to you
-  fireCooldown: 0.45,
-  range: 22, // will shoot enemies within this distance (bumped for the bigger arena)
-  defaultWeapon: 'pistol', // the ally's starting/fallback gun (solo player can reroll it — B9b)
-  // B9: the AI ally makes no upgrade choices; it passively receives this fraction of the player's
-  // accrued bonuses so it stays useful without being overpowered (player +10% dmg → ally +2%).
-  upgradeShare: 0.2,
+  followDist: 4.5, // heels this close to the solo player
+  range: 22, // engages enemies within this distance
+  // the leashed bolt (NOT a WEAPONS entry — the demon is outside the weapon economy on purpose:
+  // no reroll, no upgrades, no offer interactions; the adversarial surface stays closed)
+  bolt: {
+    cooldown: 0.55, // seconds between bolts (scaled by inherited fire-rate)
+    damage: 1,
+    bulletSpeed: 22,
+    color: 0x66d8ff, // Cherenkov-blue — the containment glow leaking out
+  },
+  inheritShare: 0.5, // fraction of the player's PERMANENT baseline it inherits
+  rateFloor: 0.5, // lowest fireRateMul inheritance may reach (guards an extreme config)
 };
 
 // ---- bullets (shared pool for player + enemies) ----
@@ -1542,6 +1552,19 @@ export const META_UPGRADES = [
     cost: [60, 90, 135, 203, 304, 456, 683, 1025, 1538, 2306],
     effect: { stat: 'luck', perLevel: 0.5 },
   },
+  {
+    // CP-C (ADR-0042): the demon companion unlock — "not free, not automatic". One premium purchase;
+    // buying it IS the opt-in (no start-menu toggle). Flows through baselineStacks like every other
+    // permanent buff, so the first-win gate (all-zero pre-beat) applies for free: baseline.demon > 0
+    // is the single spawn condition game.startRun checks (1P only — 2P already fields Dad + Son).
+    id: 'demon',
+    name: 'Broken Seal',
+    desc: 'A sealed demon fights beside you (solo runs)',
+    icon: '😈',
+    maxLevel: 1,
+    cost: [150],
+    effect: { stat: 'demon', perLevel: 1 },
+  },
 ];
 
 // ---- models: map a key -> a file under /models/ (.glb). ----
@@ -1550,11 +1573,11 @@ export const META_UPGRADES = [
 // e.g.  chaser: 'models/demon.glb'
 export const MODELS = {
   // CP-D (ADR-0041): Dad + Son each get their OWN slot (renamed from the old shared
-  // 'player'/'ally' pair — see CHARACTERS above). 'ally' stays reserved for the dormant
-  // Ally class (CP-C's future demon companion) so it never collides with Son's model.
+  // 'player'/'ally' pair — see CHARACTERS above). CP-C (ADR-0042) then turned the reserved
+  // 'ally' slot into `demon` when the old Ally class was reborn as the companion.
   dad: null,
   son: null,
-  ally: null, // reserved: CP-C demon companion (entities/ally.js, dormant since CP5)
+  demon: null, // CP-C companion (entities/demon.js) — drop a GLB here, procedural fallback until then
   chaser: null,
   shooter: null,
   spider: null,

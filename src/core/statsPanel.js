@@ -67,3 +67,26 @@ export function statRows(s = {}) {
     },
   ];
 }
+
+/**
+ * CP-C (ADR-0042): the demon companion's pause-menu readout — what the seal is feeding it
+ * (a Demon.statsSnapshot(): the three inherited multipliers). Same raw-token discipline as
+ * statRows; a SEPARATE export so the locked statRows contract (tests/statsPanel.test.js)
+ * never drifts. Missing snapshot → identity (a base-stats demon), never a throw.
+ *
+ * @param {{damageMul?:number, fireRateMul?:number, speedMul?:number}} d
+ * @returns {Array<{title:string, rows:Array<{label:string,value:string}>}>}
+ */
+export function demonRows(d = {}) {
+  const or1 = (v) => (Number.isFinite(v) ? v : 1); // identity, not zero — inheritance is a multiplier
+  return [
+    {
+      title: 'Inherited (Resonance)',
+      rows: [
+        { label: 'Damage', value: mul(or1(d.damageMul)) },
+        { label: 'Fire rate', value: mul(or1(d.fireRateMul)) },
+        { label: 'Move speed', value: mul(or1(d.speedMul)) },
+      ],
+    },
+  ];
+}
