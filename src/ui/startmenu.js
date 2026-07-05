@@ -1,13 +1,19 @@
 // =====================================================================
 // startmenu.js — the title screen. Step 1: "1 Player" / "2 Players". In 1P, step 2 is a Dad/Son
-// character pick; 2P skips it (always Dad P1 + Son P2). Calls back onChoose(coop, character) then
-// hides itself. Plain DOM overlay (#startmenu in index.html) — no library. CP5 (ADR-0038).
+// character pick; 2P skips it (always Dad P1 + Son P2). Calls back onChoose(coop, character,
+// runMode) then hides itself. Plain DOM overlay (#startmenu in index.html) — no library.
+//
+// CP-E (ADR-0043): a Story/Endless toggle sits above the player pick — but ONLY once the city
+// has been beaten (saves.gameBeaten). Pre-win the row is hidden entirely: Endless is a
+// post-win discovery (no locked/greyed tease — the no-hand-holding rule extends to menus).
 // =====================================================================
+
+import { saves } from '../core/saves.js';
 
 export function showStartMenu(onChoose) {
   const menu = document.getElementById('startmenu');
   if (!menu) {
-    onChoose(false, 'dad'); // headless / no-DOM: default to solo Dad so the game still starts
+    onChoose(false, 'dad', 'story'); // headless / no-DOM: default to solo Dad, story
     return;
   }
   menu.classList.add('show');
@@ -20,10 +26,27 @@ export function showStartMenu(onChoose) {
   };
   showChar(false); // always open on the mode pick
 
+  // ---- CP-E: Story/Endless toggle (post-win only) ----
+  let runMode = 'story';
+  const modeRow = document.getElementById('runmode');
+  const btnStory = document.getElementById('btnStory');
+  const btnEndless = document.getElementById('btnEndless');
+  const paintMode = () => {
+    btnStory?.classList.toggle('mode-on', runMode === 'story');
+    btnEndless?.classList.toggle('mode-on', runMode === 'endless');
+  };
+  if (modeRow) {
+    modeRow.style.display = saves.get().gameBeaten ? '' : 'none'; // a discovery, not a tease
+    runMode = 'story'; // every menu open starts on story (endless is an explicit pick)
+    paintMode();
+    if (btnStory) btnStory.onclick = () => ((runMode = 'story'), paintMode());
+    if (btnEndless) btnEndless.onclick = () => ((runMode = 'endless'), paintMode());
+  }
+
   const pick = (coop, character) => {
     menu.classList.remove('show');
     showChar(false); // reset so a later return to the menu starts fresh
-    onChoose(coop, character);
+    onChoose(coop, character, runMode);
   };
 
   const on = (id, fn) => {

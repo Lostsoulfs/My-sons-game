@@ -48,3 +48,4 @@ below).
 | [0040](0040-boss-phase-flips.md)                          | Boss HP-gated phase flips — wire the shelved emitters (spiral/flower/arc)  | Proposed |
 | [0041](0041-cp-d-character-model-plumbing.md)             | CP-D character-model plumbing — GLB-ready + a code-only silhouette fix     | Proposed |
 | [0042](0042-demon-companion.md)                           | Demon companion — permanent-buff inheritance, Echoes unlock (Broken Seal)  | Proposed |
+| [0043](0043-run-modes-story-endless.md)                   | Run modes — Story / Endless (post-win discovery, looping scaffold)         | Proposed |

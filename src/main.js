@@ -145,7 +145,8 @@ function probeRendererString() {
   // hide the loading splash, then show the start menu (pick 1P or 2P)
   document.getElementById('boot')?.classList.add('hide');
   document.getElementById('settings')?.classList.add('ready'); // reveal once boot clears
-  showStartMenu((coop, character) => game.startRun(coop, character));
+  // CP-E (ADR-0043): the menu also hands back the run MODE (story/endless); seed stays random
+  showStartMenu((coop, character, mode) => game.startRun(coop, character, undefined, mode));
 
   // FPS-3: adaptive auto-downgrade. If we booted 'high' but this machine can't actually sustain it
   // (a real iGPU/laptop the boot probe can't detect), MEASURE the frame rate and drop the heavy LIVE

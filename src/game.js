@@ -27,7 +27,7 @@ import {
 } from './config.js';
 import { State } from './states.js';
 import { makeRng } from './core/rng.js';
-import { floorMeta, resolveDeath, weaponSlotsForBosses } from './core/progression.js';
+import { floorMeta, resolveDeath, resolveMode, weaponSlotsForBosses } from './core/progression.js';
 import {
   generateFloorplan,
   roomCountForFloor,
@@ -100,6 +100,7 @@ export class Game {
     this.godMode = false; // debug menu toggle
 
     this.coop = false;
+    this.mode = 'story'; // CP-E (ADR-0043): 'story' | 'endless' — set per run in startRun
     this.players = []; // [p1] or [p1, p2]
     this.player = null; // = players[0]
     this.player2 = null;
@@ -145,7 +146,7 @@ export class Game {
     });
   }
 
-  startRun(coop = false, character = 'dad', seed = (Math.random() * 1e9) | 0) {
+  startRun(coop = false, character = 'dad', seed = (Math.random() * 1e9) | 0, mode = 'story') {
     this.coop = coop;
     // CP5 inserted `character` as arg 2, pushing the ADR-0013 seed to arg 3. Stay backward-compatible
     // with the old 2-arg seeded form: a NUMERIC 2nd arg is read as the seed (so a pasted/old-habit
@@ -154,6 +155,9 @@ export class Game {
       seed = character;
       character = 'dad';
     }
+    // CP-E (ADR-0043): run mode. resolveMode re-gates here (belt-and-suspenders with the start
+    // menu): endless is post-first-win only — a direct console call pre-beat falls back to story.
+    this.mode = resolveMode(mode, saves.get().gameBeaten);
     // Seed defaults to random per run; pass a fixed seed to make a run reproducible:
     //   window.__game.startRun(false, 'dad', 12345)  (or the back-compat window.__game.startRun(false, 12345))
     this.rng = makeRng(seed);
@@ -306,7 +310,7 @@ export class Game {
     // CP-C: the demon heels through the door too — reset just off the entry, behind its keeper
     this.demon?.reset(at.x + (at.spread === 'x' ? -3.5 : 0), at.z + (at.spread === 'z' ? -3.5 : 0));
 
-    const meta = floorMeta(this.floorIndex);
+    const meta = floorMeta(this.floorIndex, this.mode);
 
     // CLEARED RE-ENTRY (backtracking): no repopulation, doors open, straight to
     // ROOM_CLEAR — a cleared room must NEVER reach PLAYING (the empty-room sweep
@@ -442,7 +446,8 @@ export class Game {
 
     // restart from a finished run — keep the same mode + chosen character (CP5)
     if ((this.state === State.DEAD || this.state === State.WIN) && this.input.consumeRestart()) {
-      this.startRun(this.coop, this.player?.character ?? 'dad');
+      // preserve character AND mode across the R-restart (the startRun-signature-ripple lesson)
+      this.startRun(this.coop, this.player?.character ?? 'dad', undefined, this.mode ?? 'story');
       return;
     }
     if ((this.state === State.DEAD || this.state === State.WIN) && this.input.consumeForge()) {
@@ -650,7 +655,7 @@ export class Game {
     prompts.hide();
     const node = this._node();
     node.cleared = true; // backtracking: this room is done forever (ADR-0032)
-    const { isLastFloor } = floorMeta(this.floorIndex);
+    const { isLastFloor } = floorMeta(this.floorIndex, this.mode); // endless: never a last floor (CP-E)
 
     if (node.type === 'boss') {
       hud.hideBossBars();
@@ -943,7 +948,8 @@ export class Game {
       const hit = this.players.some((p) => p.alive && circleVsBox(p.x, p.z, p.radius, door.box));
       if (!hit) continue;
       if (door.kind === 'exit') {
-        if (floorMeta(this.floorIndex).isLastFloor) this._onWin();
+        // CP-E: in endless isLastFloor is always false → the exit descends forever, diff climbing
+        if (floorMeta(this.floorIndex, this.mode).isLastFloor) this._onWin();
         else this._startFloor(this.floorIndex + 1);
       } else {
         this.loadNode(this._node().neighbours[side], OPPOSITE[side]);

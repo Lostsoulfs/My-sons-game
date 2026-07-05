@@ -422,6 +422,21 @@
         align-items: center;
         gap: 18px;
       }
+      /* ---- CP-E: Story/Endless toggle (post-win only; see ui/startmenu.js) ---- */
+      #runmode {
+        display: flex;
+        flex-direction: row;
+        gap: 12px;
+      }
+      #runmode button {
+        font-size: 15px;
+        padding: 10px 18px;
+        opacity: 0.55; /* the unselected mode sits dim… */
+      }
+      #runmode button.mode-on {
+        opacity: 1; /* …the chosen one lights up */
+        border-color: #ffd18a;
+      }
       #charpick .charpick-title {
         font-size: 20px;
         font-weight: 800;
@@ -1037,6 +1052,11 @@
 
     <div id="startmenu">
       <h1>🩸 City of Monsters</h1>
+      <!-- CP-E: Story/Endless toggle — hidden until the city has been beaten (a discovery) -->
+      <div id="runmode" style="display: none">
+        <button id="btnStory" class="mode-on">📖 Story</button>
+        <button id="btnEndless">♾️ Endless</button>
+      </div>
       <div id="modepick">
         <button id="btn1p">▶ 1 Player</button>
         <button id="btn2p">🎮 2 Players</button>
