@@ -196,6 +196,17 @@ export const ROOMS = {
   // spawns must keep clear of the door you walk in through and you get a brief grace.
   entryGrace: 1.0, // seconds of i-frames on room entry (no unfair contact hit if you spawn on a mob)
   entryClearance: 6, // enemies/survivors never spawn within this radius of the entry point
+  // buildRoom (rooms.js) keep-clear zones (ADR-0032): rubble never blocks a doorway or the
+  // dead-centre (the heal room drops its HEAL at 0,0; a walkable centre is fair neutral space).
+  doorClearMargin: 2, // lateral padding to each side of a door gap (added to doorWidth/2)
+  doorClearDepth: 7, // how far into the room a doorway stays rubble-free
+  centerClear: 3, // keep-clear radius around dead-centre (0,0)
+  // findSpot (spawner.js) rejection-sampling: keep spawns off the side walls and the Z edges
+  // (entries live at the very edges), and pad the wall test by the actor radius.
+  spawnMarginX: 2, // horizontal inset from each side wall when sampling a spawn
+  spawnMarginZ: 3, // near/far (Z) inset from the edges
+  spawnWallPad: 0.5, // extra padding on the actor radius when testing a spawn vs a wall/rubble box
+  spawnMaxTries: 30, // rejection-sample attempts before falling back to dead-centre
 };
 
 // ---- progression: each floor is a CONNECTED room graph (ADR-0032, core/floorplan.js) ----

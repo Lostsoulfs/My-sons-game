@@ -75,14 +75,14 @@ export function buildRoom(scene, rng, sidesSpec = { link: ['N'], exit: null }) {
 
   // rubble obstacles (also block bullets + movement) — keep clear of every doorway
   // (entry placement is door-side too, so this covers player entries as well)
+  const { doorClearMargin: dm, doorClearDepth: dd, centerClear: CENTER_CLEAR } = ROOMS;
   const nearDoor = (cx, cz) =>
-    (doorSides.has('N') && Math.abs(cx) < dh + 2 && cz < -hd + 7) ||
-    (doorSides.has('S') && Math.abs(cx) < dh + 2 && cz > hd - 7) ||
-    (doorSides.has('W') && Math.abs(cz) < dh + 2 && cx < -hw + 7) ||
-    (doorSides.has('E') && Math.abs(cz) < dh + 2 && cx > hw - 7);
+    (doorSides.has('N') && Math.abs(cx) < dh + dm && cz < -hd + dd) ||
+    (doorSides.has('S') && Math.abs(cx) < dh + dm && cz > hd - dd) ||
+    (doorSides.has('W') && Math.abs(cz) < dh + dm && cx < -hw + dd) ||
+    (doorSides.has('E') && Math.abs(cz) < dh + dm && cx > hw - dd);
   // keep a small radius around dead-center clear: the heal room drops its guaranteed
   // HEAL at (0,0), and a walkable centre is a fair neutral space in every room (ADR-0032).
-  const CENTER_CLEAR = 3;
   const n = Math.round(rng.range(ROOMS.obstaclesMin, ROOMS.obstaclesMax + 1));
   for (let i = 0; i < n; i++) {
     const w = rng.range(2, 5);

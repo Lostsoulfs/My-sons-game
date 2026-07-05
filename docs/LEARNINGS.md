@@ -920,3 +920,31 @@ base*(1+growth)^i`. Removed the hand-set per-floor `diff` from `PROGRESSION.floo
   the hidden-tab rAF throttle, i.e. correct pause-when-backgrounded behavior. Defeating it (a setTimeout
   fallback tick) would waste a real player's GPU/battery when tabbed away. Verify visuals with
   synchronous `preview_eval` / `preview_inspect`, never screenshots, on this preview.
+
+## 2026-07-04 — CodeRabbit maintainability cleanup on the connected map (post-#79)
+
+- **Behavior-preserving refactor of a seed-deterministic generator needs a byte-level proof,
+  not just green tests.** For `floorplan.js` (`tryExpand` cog-complexity 28→gate 15,
+  `generateFloorplan` 19) I snapshotted the FULL `generateFloorplan` + `minimapView` output
+  across 980 configs (120 seeds × 8 room counts + 20 corridor-fallback configs), sha256'd it,
+  refactored, re-ran → identical hash (`de90b60743…`). The floorplan tests assert invariants
+  (tree/reachability/boss-placement), not exact layouts, so the hash is what actually catches
+  a one-off rng-order slip the invariant tests would pass through.
+- **The rng-consumption ORDER is the invariant to protect, not the code shape.** Extracted
+  `canPlace`/`growFrom`/`buildRooms`/`assignDepths`/`assignSpecials`/`assignLayoutSeeds`/
+  `assignSurvivors` — safe only because each reject check still runs BEFORE the `rng.next()`
+  coin flip, and the call order stays expansion→layoutSeeds→survivors. `Map` insertion order
+  (→ room ids) and the `next.push(child…)` then `next.push(parent)` frontier order are both
+  preserved, so ids and BFS order are stable. Watch `?? 2` vs a default param: `null` survivors
+  differ (`null ?? 2 === 2`, but a `= 2` default only fires on `undefined`) — kept the `??`.
+- **You CAN measure SonarCloud cognitive complexity locally** (Automatic Analysis has no local
+  scanner) with `eslint-plugin-sonarjs`'s `sonarjs/cognitive-complexity` rule at threshold 0 —
+  it prints every function's actual score and reproduced Sonar's exact 28/19 on the original, so
+  it's a faithful pre-check. Ran it in a throwaway scratchpad project (needs the `ts-api-utils`
+  peer dep), NOT added to the repo. After: max score in the file is 12 (`minimapView`, untouched).
+- **Config-first cleanup (rooms.js/spawner.js):** moved the door-clearance (`dh+2`/`±7`),
+  centre-keep-clear (`3`), and `findSpot` sampling margins (`hw-2`, `hd±3`, `+0.5` wall pad,
+  `30` tries) into `config.ROOMS` (`doorClearMargin`/`doorClearDepth`/`centerClear`/
+  `spawnMargin{X,Z}`/`spawnWallPad`/`spawnMaxTries`). Pure literal-for-config swap, same values,
+  no behavior change — these render modules aren't unit-covered, so the build + value-equality
+  is the proof. Gate green: lint, format:check, 371 tests, build.
