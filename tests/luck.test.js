@@ -86,4 +86,20 @@ describe('goodDropMultiplier (rare+ tier-weight from luck ⊖ curse)', () => {
       goodDropMultiplier({ inRunLuck: 5 }),
     );
   });
+
+  it('is non-finite-SAFE: a NaN/±Infinity dial falls back to neutral (never a silent all-ultra roll)', () => {
+    // Phase 6b will feed a real `curse` number here; a bad source must NOT invert into max-tier offers.
+    expect(goodDropMultiplier({ curse: NaN })).toBe(1);
+    expect(goodDropMultiplier({ permLuck: NaN })).toBe(1);
+    expect(goodDropMultiplier({ inRunLuck: Infinity })).toBeLessThanOrEqual(1 + LUCK.max);
+    expect(Number.isFinite(goodDropMultiplier({ inRunLuck: 1e300, curse: 1e300 }))).toBe(true);
+  });
+
+  it('luckBonus stays STRICTLY below LUCK.max even at absurd finite luck (never a guaranteed bonus)', () => {
+    // the "never guarantees" contract lives on the CURVE; the multiplier is separately clamped ≤ 1+max
+    // (and hitting that ceiling is fine — commons still carry weight, so a rare+ is never forced).
+    expect(luckBonus(1e18, 0)).toBeLessThan(LUCK.max);
+    expect(luckBonus(Number.MAX_VALUE, Number.MAX_VALUE)).toBeLessThan(LUCK.max);
+    expect(goodDropMultiplier({ inRunLuck: 1e18 })).toBeLessThanOrEqual(1 + LUCK.max);
+  });
 });

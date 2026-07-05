@@ -264,7 +264,7 @@ describe('the beat-the-game gate', () => {
       const expected =
         node.effect.curve === 'percent'
           ? metaBreakpointBonus(node.maxLevel, META_CURVE) // ADR-0031: standalone % curve
-          : node.effect.perLevel * node.maxLevel; // flat nodes (aegis/aegis) — unchanged
+          : node.effect.perLevel * node.maxLevel; // flat nodes (aegis/fortune)
       expect(stacks[node.effect.stat]).toBeCloseTo(expected);
     }
   });

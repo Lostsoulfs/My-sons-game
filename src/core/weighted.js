@@ -14,7 +14,10 @@
 export function weightedChoice(rng, entries) {
   if (!entries.length) return null;
   const total = entries.reduce((s, e) => s + e.weight, 0);
-  if (total <= 0) return entries[rng.int(entries.length)].value;
+  // `!(total > 0)` (not `total <= 0`) so a NaN total ALSO routes here — a degenerate/NaN weight
+  // set degrades to a benign uniform pick instead of silently falling through to the last (highest)
+  // entry. Defence-in-depth for any upstream that hands in a bad weight.
+  if (!(total > 0)) return entries[rng.int(entries.length)].value;
   let roll = rng.next() * total;
   for (const e of entries) {
     roll -= e.weight;
