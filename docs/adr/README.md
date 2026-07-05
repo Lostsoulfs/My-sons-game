@@ -42,3 +42,4 @@ below).
 | [0034](0034-adaptive-graphics-quality.md)          | Adaptive graphics quality — measure FPS, auto-downgrade weak machines      | Proposed |
 | [0035](0035-weapon-reload-overheat.md)             | Weapon downside — reload (ballistic) + overheat (energy)                   | Proposed |
 | [0036](0036-weapon-power-budget-rarity.md)         | Weapon power-budget model — rarity ≈ power, strict pyramid, no pity        | Proposed |
+| [0037](0037-luck-curse-curve-upgrade-rework.md)    | Luck/curse magic-find curve + survival-upgrade rework (cut HP/soak)        | Proposed |

@@ -1034,3 +1034,33 @@ heatPerShot − coolRate·cooldown ≤ 0`, `dutyEnergy` returns 1 — i.e. no do
   rare+ floor (separate mechanism) and the explicit-`minTier` flooring in `rollDrop`. The rewritten
   `pity.test.js`/`offers.proof.test.js` now assert "pity returns null at any streak" + "a dry run has no
   safety net" + "boss floor still works" — coverage moved with the design, it didn't shrink.
+
+## CP4 — luck/curse curve + survival-upgrade rework, 2026-07-05 (ADR-0037)
+
+- **Remove a meta-upgrade node by deleting it from `META_UPGRADES` — the plumbing fails safe.**
+  `saves.js` (baselineStacks / costOf / normalizeSave) all iterate `META_UPGRADES`, so dropping
+  `vitality`/`toughHide` makes old saves' spent levels normalize away (unknown id → dropped), costOf
+  returns Infinity, and the buy UI shrinks — no dangling refs, no corruption. The ONLY coupled edit is
+  the `baselineStacks` zero-object keys (drop `hearts`/`damageReduction`, add `luck`) AND every
+  consumer that read `bl.hearts`/`bl.damageReduction` (player.reset/\_recomputeUpgrades) — miss one and
+  you get `PLAYER.maxHearts + undefined = NaN`. A pre-edit scout that maps EVERY reference is what made
+  this a clean cut instead of a whack-a-mole.
+- **Curse as "partially-offset negative luck" needs the offset damped BY luck, or luck trivially
+  cancels it.** `offset = curse·curseWeight·(1 − curseLuckDamp·luckBonus/max)`: at zero luck a curse
+  point costs the full `curseWeight`; at the luck ceiling it still costs `curseWeight·(1−curseLuckDamp)`
+  (≈0.25 here). That "still bites at max luck" property is the whole design point — test it by measuring
+  `goodMul(luck) − goodMul(luck, curse:1)` at high vs low luck (shrinks but never hits 0), not by a
+  single golden number.
+- **A saturated probe hides a slope (CP3's lesson, re-applied preemptively).** The luck tests assert
+  the curve is strictly increasing AND asymptotes strictly BELOW `LUCK.max` for any finite stacks (the
+  "never guarantees" contract), and that the multiplier floors at `goodMulMin` under heavy curse
+  (drops thin, never vanish) — properties a "big number in, big number out" test would miss.
+- **Flat-with-cap beats a multiplier for a stacking reward.** `GLOBAL_DAMAGE` went ×1.3 (1.3→1.69→2.2,
+  unbounded) → flat `+1` capped at 3, applied `(base+flat)·damageMul` at all THREE fire sites (regular
+  / charge / orbital) — grep the field name (`_globalDmgMul`) to find them all, don't trust one site.
+  Gate it out of the offer pool at max (via the item's own `maxStacks`) so it's not a dead card.
+- **Live-drive caught nothing new, but confirmed the wiring the units can't see:** `offerContext`
+  threads `permLuck`/`curse`/`globalDamageFlat` and drops `DMG_REDUCT`; `_globalDamageFlat` caps at 3
+  through the real `applyOfferCard`; a guard blocks a whole hit and an unguarded 2-dmg hit lands full
+  (no soak). Watch for the room-entry `spawnSafe` grace swallowing your first scripted `hurt()` — clear
+  `spawnSafe`+`invuln` before EACH hit in a drive.
