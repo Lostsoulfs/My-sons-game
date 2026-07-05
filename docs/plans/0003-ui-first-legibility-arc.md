@@ -1,6 +1,6 @@
 # 0003 — UI-first legibility → combat cleanup → demon companion → models → modes
 
-- **Status:** Planned — executing after the CP1–CP5 stack (#84–#87).
+- **Status:** In progress — CP-A ✅ (#89), CP-B ✅ (ADR-0039); CP-C/D/E next.
 - **Date:** 2026-07-05
 - **Follows:** [0002 — Weapon & Economy Redesign](0002-weapon-economy-redesign.md).
 
@@ -27,11 +27,12 @@ CP is one gated, feel-tested PR. Almost all of it is _assembly on systems that a
   `settings.js`), and an opt-in **"show all stats"** panel reading live player fields (`damageMul`,
   `speed`, `_up.luck`, `_baseline.*`, `guardCharges`, `_globalDamageFlat`, per-weapon
   `_weaponUpgrades`). **Raw values, no explanatory tooltips** — numbers to discover, not be taught.
-- **CP-B — Combat cleanup.** (1) Orbital blades removed _as a weapon_ (~36 sites) and re-added as
-  an always-on **passive blade aura** granted by an upgrade (reuses the existing `_updateOrbital`
-  loop off a passive flag). (2) Guard → visible **atomic armor**: mechanic unchanged
-  (`defense.js` already blocks a whole hit; Greater-Guard already = 3 charges), but reskinned and
-  **rendered as armor plates over the last heart(s)**, capped at 3. ADR: diegetic-object design.
+- **CP-B — Combat cleanup.** ✅ **Shipped (ADR-0039).** (1) Orbital Blade removed _as a weapon_ and
+  re-added as the always-on **passive `BLADE_AURA`** upgrade — the `_updateAura` loop (renamed from
+  `_updateOrbital`) ticks every frame off `_auraLevel`, stacks to 3, offer-gated at max; the rarity
+  pyramid became `8/6/5/2`. (2) Guard → visible **Atomic Armor**: mechanic unchanged, item names
+  reskinned ("Atomic Plating" / "Powered Exo-Armor"), `guardCharges` now **rendered as 🛡️ plates
+  over the hearts**, capped at 3; stats panel relabels Guard → Armor. Live-verified via `window.__game`.
 - **CP-C — Demon companion.** Revive the dormant `Ally` as a portal-**demon** (not a pet, not
   cute — a sealed monster who didn't want the war). No reroll (already gone), no new weapons; it
   inherits a **% of your PERMANENT (meta) buffs** (`player._baseline.*`), so it only strengthens

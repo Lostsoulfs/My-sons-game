@@ -187,12 +187,11 @@ describe('ADR-0030 weapon-aware gating', () => {
     }
   });
 
-  it('the Orbital Blade never gets bullet-mod offers (it fires no bullets)', () => {
+  it('the Blade Aura pick stops being offered once it is at max level (CP-B)', () => {
     const rng = makeRng(10);
-    const modIds = ['MOD_PIERCE', 'MOD_BOUNCE', 'MOD_BULLET_SPEED', 'MOD_BLAST'];
     for (let i = 0; i < 2000; i++) {
-      const cards = generateOffer(rng, { weaponOrbital: true });
-      expect(cards.some((c) => modIds.includes(c.id))).toBe(false);
+      const cards = generateOffer(rng, { auraLevel: 3 }); // BLADE_AURA.maxLevel
+      expect(cards.some((c) => c.id === 'BLADE_AURA')).toBe(false);
     }
   });
 });

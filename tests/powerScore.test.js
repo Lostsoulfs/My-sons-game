@@ -25,9 +25,6 @@ describe('effectiveCooldown', () => {
   it('a spun-up gun is scored at its wound-up END cadence', () => {
     expect(effectiveCooldown({ spinUp: { startCd: 0.14, endCd: 0.045 } })).toBe(0.045);
   });
-  it('an orbital uses its per-enemy hit cooldown', () => {
-    expect(effectiveCooldown({ orbital: true, hitCooldown: 0.4 })).toBe(0.4);
-  });
 });
 
 describe('burstDPS', () => {

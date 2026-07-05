@@ -1091,3 +1091,22 @@ heatPerShot − coolRate·cooldown ≤ 0`, `dutyEnergy` returns 1 — i.e. no do
 - **Keep the dormant class, drop its wiring.** The plan wants `Ally` for a future pet, so the class +
   `config.ALLY` stay as an unreferenced file (not imported) rather than living behind a dead `if`
   branch in game.js — cleaner than either deleting it or keeping guarded dead code. 463 tests; gate green.
+
+## CP-B — Orbital → passive Blade Aura + Guard → visible Atomic Armor (2026-07-05)
+
+- **Removing a weapon shifts the CP3 power pyramid, not just the roster.** Dropping the Orbital Blade
+  took the rare count 7 → 6 (`8/6/5/2`) AND moved the rare _median_ power score (7.5 → 7.75, since the
+  removed weapon was a low rare). `tests/weaponEconomy.test.js` pins golden medians — recompute + re-pin
+  them from a real run, don't hand-guess. Also: it was the _only_ limiter-less weapon, so the "exactly
+  one weapon has no firing limiter" invariant became "every weapon has one" (`unlimited === []`).
+- **A passive that rides on top of the weapon goes OUTSIDE the weapon if/else.** The aura tick
+  (`if (this._auraLevel > 0) this._updateAura(...)`) runs every frame after the charge/normal-fire
+  branch, so it's independent of the held gun — unlike the old orbital which WAS the weapon branch.
+- **Orbit-ring hit tests: park the enemy ON the ring, not inside it.** Blades orbit at `radius` with a
+  0.5 collision circle. An enemy at distance < radius sits in the _gap_ and never gets hit (a blade at
+  radius 2.6 vs an enemy at 1.0 is 1.6 apart > 0.5+enemyR). Put the test enemy at exactly
+  `player.x + BLADE_AURA.radius` so a blade sweeps through it — otherwise you get a false "aura does no
+  damage" and chase a non-bug.
+- **Reskin in fiction, keep IDs + effect blurbs stable.** Guard → "Atomic Plating"/"Powered Exo-Armor"
+  changed only item `name` + the stats-panel label + the visible 🛡️ plates. IDs (`GUARD`/`GREATER_GUARD`)
+  and the `blurbFor` output ("Block the next hit") stay — saves and `tests/items.test.js` lock them.

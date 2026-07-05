@@ -192,7 +192,7 @@ export class Game {
 
   _teardownActors() {
     if (this.player) {
-      this.player.dispose(this.scene); // also clears scene-attached orbital blades
+      this.player.dispose(this.scene); // also clears scene-attached blade-aura blades
       this.scene.remove(this.player.mesh);
     }
     if (this.player2) {
@@ -348,8 +348,9 @@ export class Game {
   }
 
   refreshHud() {
-    hud.setHearts(this.player.hearts, this.player.maxHearts);
-    if (this.coop && this.player2) hud.setHearts2(this.player2.hearts, this.player2.maxHearts);
+    hud.setHearts(this.player.hearts, this.player.maxHearts, this.player.guardCharges);
+    if (this.coop && this.player2)
+      hud.setHearts2(this.player2.hearts, this.player2.maxHearts, this.player2.guardCharges);
     hud.setLives(this.lives);
     hud.setRoom(
       {

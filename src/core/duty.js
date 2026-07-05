@@ -30,7 +30,8 @@ export function dutyEnergy(cooldown, { heatPerShot, coolRatePerSec, resetHeat })
 
 /**
  * Duty for a weapon given its effective `cooldown` and its config.WEAPON_LIMITS entry.
- * Returns 1 for a limiter-less weapon (e.g. the orbital — a passive contact weapon).
+ * Returns 1 for a limiter-less weapon (none ship today — every weapon has a reload/heat
+ * limiter; the branch stays as a defensive default).
  */
 export function weaponDuty(cooldown, limit) {
   if (limit?.reload) return dutyBallistic(limit.reload.clipSize, cooldown, limit.reload.reloadTime);

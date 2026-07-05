@@ -15,6 +15,7 @@ import {
   UPGRADES,
   OFFERS,
   GUARD,
+  BLADE_AURA,
   GRAPHICS,
   WEAPON_MODS,
 } from '../config.js';
@@ -106,6 +107,7 @@ export class Player {
     this._clip = {}; // key -> reload state {ammo, reloading, reloadT}  (core/reload.js)
     this._heatState = {}; // key -> heat state {heat, overheated}         (core/heat.js)
     this._globalDamageFlat = 0; // CP4: ultra reward — flat +add per shot across all guns, capped at 3
+    this._auraLevel = 0; // CP-B: passive blade-aura level (0 = none); stacked by the BLADE_AURA pick
     this.offerRecent = []; // recently-offered item ids → anti-repeat (OFFERS.recentMemory)
     this.offerSeenWeapons = {}; // weapon id → times OFFERED this run (see-it-once decay, ADR-0030)
     this.offerCommonStreak = 0; // consecutive commons TAKEN → drives offer pity (per player)
@@ -135,7 +137,6 @@ export class Player {
     // weapon FX: flavor derived from the gun; intensity scaled by its rarity tier
     this._weaponFx = deriveWeaponFx(this.weaponDef);
     this._fxIntensity = rarityIntensity(weaponTier(this.weapon), GRAPHICS.vfx?.rarityScale);
-    if (!this.weaponDef.orbital) this._hideOrbital(); // stash orbital blades
     this._wUp(this.weapon); // ensure this gun has a per-weapon upgrade entry
     this._recomputeUpgrades(); // derived damage/fire-rate follow the HELD gun (ADR-0030)
   }
@@ -147,7 +148,7 @@ export class Player {
     const lim = WEAPON_LIMITS[this.weapon];
     if (lim?.reload) return { kind: 'reload', cfg: lim.reload };
     if (lim?.heat) return { kind: 'heat', cfg: lim.heat };
-    return null; // e.g. orbital (a passive contact weapon) — no firing limiter
+    return null; // no reload/heat limiter configured for this weapon
   }
 
   /** tick the active weapon's reload/heat by dt (lazy-init on first use); returns can-fire-now. */
@@ -281,9 +282,7 @@ export class Player {
     const aim = input.aim(this.device, camera, this.x, this.z);
     this.mesh.rotation.y = Math.atan2(aim.x, aim.z);
 
-    if (this.weaponDef.orbital) {
-      this._updateOrbital(dt, game);
-    } else if (this.weaponDef.charge) {
+    if (this.weaponDef.charge) {
       this.fireTimer -= dt;
       this._updateCharge(dt, game, aim, this._tickLimiter(dt)); // CP2: reload gates the charge shot
     } else {
@@ -304,6 +303,9 @@ export class Player {
         if (this.device !== 'kb' && cd >= 0.15) input.rumble(0.12, 0.08, 50);
       }
     }
+
+    // CP-B: the passive blade aura spins + shears every frame, independent of the held weapon.
+    if (this._auraLevel > 0) this._updateAura(dt, game);
 
     // --- i-frames + hit flash ---
     if (this.spawnSafe > 0) this.spawnSafe -= dt; // silent entry grace (no flicker)
@@ -352,69 +354,77 @@ export class Player {
     }
   }
 
-  // --- Orbital Blade: blades circle the player and hit on contact (no aiming) ---
-  _updateOrbital(dt, game) {
-    const def = this.weaponDef;
-    if (!this._orbital) this._orbital = { blades: [], angle: 0, cd: new Map() };
-    const orb = this._orbital;
-    while (orb.blades.length < def.count) {
+  // --- CP-B: passive blade aura — blades circle the player and shear on contact (no aiming).
+  //     Always on once unlocked (_auraLevel > 0), INDEPENDENT of the held weapon. The blade count
+  //     scales with the aura level; global flat +dmg and damageMul still apply, so it rides your build.
+  _updateAura(dt, game) {
+    const cfg = BLADE_AURA;
+    const level = Math.min(this._auraLevel, cfg.maxLevel);
+    const count = cfg.baseCount + (level - 1) * cfg.countPerLevel;
+    if (!this._aura) this._aura = { blades: [], angle: 0, cd: new Map() };
+    const aura = this._aura;
+    while (aura.blades.length < count) {
       const m = new THREE.Mesh(
         new THREE.OctahedronGeometry(0.4, 0),
-        new THREE.MeshBasicMaterial({ color: def.color ?? 0x66ffd0 }),
+        new THREE.MeshBasicMaterial({ color: cfg.color }),
       );
       game.scene.add(m);
-      orb.blades.push(m);
+      aura.blades.push(m);
     }
-    orb.angle += def.spin * dt;
-    for (let i = 0; i < def.count; i++) {
-      const a = orb.angle + (i / def.count) * Math.PI * 2;
-      const bx = this.x + Math.sin(a) * def.radius;
-      const bz = this.z + Math.cos(a) * def.radius;
-      const m = orb.blades[i];
+    aura.angle += cfg.spin * dt;
+    for (let i = 0; i < aura.blades.length; i++) {
+      const m = aura.blades[i];
+      if (i >= count) {
+        m.visible = false; // extra blades from a shrunk level (defensive — level only grows)
+        continue;
+      }
+      const a = aura.angle + (i / count) * Math.PI * 2;
+      const bx = this.x + Math.sin(a) * cfg.radius;
+      const bz = this.z + Math.cos(a) * cfg.radius;
       m.position.set(bx, 1, bz);
       m.rotation.y += dt * 6;
       m.visible = true;
       for (const e of game.enemies) {
-        if (e.dead || (orb.cd.get(e) || 0) > 0) continue;
+        if (e.dead || (aura.cd.get(e) || 0) > 0) continue;
         if (circleVsCircle(bx, bz, 0.5, e.x, e.z, e.radius)) {
           // global flat +dmg applies to blades too ("all weapons"); fire-rate speeds up the
-          // per-enemy hit tick so FIRE_RATE_UP is a live pick on the orbital (ADR-0030 review)
+          // per-enemy hit tick so FIRE_RATE_UP still buffs the aura (ADR-0030 review).
           e.hurt(
-            (def.damage + this._globalDamageFlat) * this.damageMul,
+            (cfg.damage + this._globalDamageFlat) * this.damageMul,
             game,
             normalize(e.x - this.x, e.z - this.z), // shove away (B7)
           );
           game.weaponfx?.impact(bx, bz, 'enemy', this._weaponFx, this._fxIntensity);
-          orb.cd.set(e, def.hitCooldown * this.fireRateMul);
+          aura.cd.set(e, cfg.hitCooldown * this.fireRateMul);
         }
       }
     }
-    for (const [e, t] of orb.cd) {
+    for (const [e, t] of aura.cd) {
       const nt = t - dt;
-      if (nt <= 0) orb.cd.delete(e);
-      else orb.cd.set(e, nt);
+      if (nt <= 0) aura.cd.delete(e);
+      else aura.cd.set(e, nt);
     }
   }
 
-  _hideOrbital() {
-    if (this._orbital) for (const m of this._orbital.blades) m.visible = false;
+  _hideAura() {
+    if (this._aura) for (const m of this._aura.blades) m.visible = false;
   }
 
   /**
    * Tear down anything this player added to the scene BEYOND its own mesh.
-   * Right now that's the orbital blades — they live directly in the scene (not
-   * under `this.mesh`), so removing the mesh alone would orphan them. Without
-   * this, resetting the game while the Orbital Blade is equipped left the blades
-   * frozen in the scene at their last position. Call before dropping a player.
+   * Right now that's the blade-aura blades — they live directly in the scene (not
+   * under `this.mesh`), so removing the mesh alone would orphan them. Without this,
+   * resetting the game with the aura active left the blades frozen in the scene at
+   * their last position. Call before dropping a player.
    */
   dispose(scene) {
-    if (this._orbital) {
-      for (const m of this._orbital.blades) {
+    if (this._aura) {
+      for (const m of this._aura.blades) {
         scene.remove(m);
         m.geometry?.dispose();
         m.material?.dispose();
       }
-      this._orbital = null;
+      this._aura = null;
     }
   }
 
@@ -491,7 +501,7 @@ export class Player {
       this.hearts = 0;
       this.alive = false;
       this.mesh.visible = false;
-      this._hideOrbital(); // else orbital blades freeze visible at the death spot
+      this._hideAura(); // else the aura blades freeze visible at the death spot
     }
     game.refreshHud();
   }
@@ -534,6 +544,7 @@ export class Player {
       hearts: this.hearts,
       maxHearts: this.maxHearts,
       guardCharges: this.guardCharges,
+      bladeAura: this._auraLevel, // CP-B: passive blade-aura level (0 = none)
       // derived multipliers (what actually reaches the sim)
       damageMul: this.damageMul,
       fireRateMul: this.fireRateMul,
@@ -603,7 +614,7 @@ export class Player {
       },
       // ADR-0030 weapon-aware gating: skip maxed stats + block explosive on explosive/fast guns.
       // weaponExplosive includes the gun's OWN blast picks so one MOD_BLAST stops further offers;
-      // weaponMods lets maxed mod cards drop out; weaponOrbital blocks bullet-mods on the blades.
+      // weaponMods lets maxed mod cards drop out; auraLevel gates the Blade Aura once maxed (CP-B).
       statCap: CAPS.upgradesPerStat,
       weaponStat: { DAMAGE_UP: w.damage, FIRE_RATE_UP: w.fireRate },
       weaponMods: {
@@ -614,7 +625,7 @@ export class Player {
       },
       weaponExplosive: !!def.explosive || w.explodeRadius > 0,
       weaponFast: (def.cooldown ?? 1) <= OFFERS.fastWeaponCd,
-      weaponOrbital: !!def.orbital,
+      auraLevel: this._auraLevel, // CP-B: gate the Blade Aura pick once it hits max level
       ownedCount: this.slots.length,
       luck: this._up.luck, // in-run positive dial (the engine clamps it)
       permLuck: this._baseline.luck, // CP4: permanent Fortune luck → the D2 offer curve
@@ -661,6 +672,9 @@ export class Player {
         break;
       case 'guard':
         this.guardCharges += e.charges;
+        break;
+      case 'bladeAura': // CP-B: stack the passive blade aura, capped at its max level
+        this._auraLevel = Math.min(e.maxStacks ?? Infinity, this._auraLevel + e.add);
         break;
       case 'mod': {
         // ADR-0030: weapon mods bind to the HELD gun, capped per stat

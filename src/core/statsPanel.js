@@ -25,7 +25,7 @@ export function statRows(s = {}) {
       title: 'Vitals',
       rows: [
         { label: 'Hearts', value: `${int(s.hearts)} / ${int(s.maxHearts)}` },
-        { label: 'Guard', value: int(s.guardCharges) },
+        { label: 'Armor', value: int(s.guardCharges) }, // CP-B: guard charges = atomic armor plates
       ],
     },
     {
@@ -34,6 +34,7 @@ export function statRows(s = {}) {
         { label: 'Damage', value: mul(s.damageMul) },
         { label: 'Fire rate', value: mul(s.fireRateMul) },
         { label: 'Flat damage', value: flat(s.globalDamageFlat) },
+        { label: 'Blade aura', value: int(s.bladeAura) }, // CP-B: passive blade-aura level
       ],
     },
     {
@@ -60,7 +61,7 @@ export function statRows(s = {}) {
         { label: 'Damage', value: pct(b.damage) },
         { label: 'Fire rate', value: pct(b.fireRate) },
         { label: 'Speed', value: pct(b.speed) },
-        { label: 'Guard', value: flat(b.guard) },
+        { label: 'Armor', value: flat(b.guard) }, // CP-B: permanent guard/armor plates (Aegis)
         { label: 'Luck', value: n(b.luck).toFixed(1) },
       ],
     },
