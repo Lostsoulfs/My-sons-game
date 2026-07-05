@@ -777,9 +777,9 @@ export class Game {
       this._openHumanChoice();
       return;
     }
-    this._approach = { t: 0, boss, opened: false };
+    this._approach = { t: 0, camProg: 0, boss, opened: false };
     this.state = State.HUMAN_APPROACH;
-    prompts.show('A survivor blocks the gate — approach him.   [E] / Ⓐ');
+    prompts.show('A survivor waits beyond the crowd — walk up to him.');
   }
 
   /** Walk-up loop: open the A/B/C/D choice once you reach him (or press interact). */
@@ -788,13 +788,18 @@ export class Game {
     if (!ap || ap.opened) return;
     ap.t += dt;
     const boss = ap.boss;
-    const near =
-      boss &&
-      this.players.some(
-        (p) => p.alive && Math.hypot(p.x - boss.x, p.z - boss.z) <= HUMAN_APPROACH.approachRadius,
-      );
-    const pressed = this.input.consumeHelp('both');
-    if (ap.t >= HUMAN_APPROACH.buildupMinMs / 1000 && (near || pressed)) {
+    if (!boss) return;
+    // nearest live player's distance to the survivor
+    let dist = Infinity;
+    for (const p of this.players) {
+      if (p.alive) dist = Math.min(dist, Math.hypot(p.x - boss.x, p.z - boss.z));
+    }
+    // ease a camera focus onto him as you close the gap — the "zoom + walk up" beat (CP1)
+    const span = HUMAN_APPROACH.camFocusFrom - HUMAN_APPROACH.approachRadius;
+    const t = span > 0 ? Math.max(0, Math.min(1, (HUMAN_APPROACH.camFocusFrom - dist) / span)) : 1;
+    ap.camProg = t * t * (3 - 2 * t) * HUMAN_APPROACH.camMaxProg; // smoothstep × max
+    // the choice opens only once you've actually reached him (after a short read beat)
+    if (ap.t >= HUMAN_APPROACH.buildupMinMs / 1000 && dist <= HUMAN_APPROACH.approachRadius) {
       ap.opened = true;
       this._openHumanChoice();
     }
@@ -920,6 +925,22 @@ export class Game {
     prompts.hide();
   }
 
+  /**
+   * CP1 cinematic focus: ease the camera from the room framing toward (fx,fz), dropping it to
+   * `cfg.camHeight` and raising the look-target to `cfg.lookAtY`, so it looks at the subject's
+   * FRONT (not its top). `p` (0..1) drives the ease; `cfg.camZoom` pulls the distance in. Shared
+   * by the boss entrance (low hero angle) and the human walk-up (gentler framing).
+   */
+  _focusCam(fx, fz, p, sh, pan, cfg) {
+    const lx = pan.x + (fx - pan.x) * p;
+    const lz = pan.z + (fz - pan.z) * p;
+    const camY = this.baseCam.y + (cfg.camHeight - this.baseCam.y) * p;
+    const bk = this.baseCam.z * (1 - p * cfg.camZoom);
+    const lookY = CAMERA.lookAtY + (cfg.lookAtY - CAMERA.lookAtY) * p;
+    this.camera.position.set(lx + sh.x, camY + sh.y, lz + bk + sh.z);
+    this.camera.lookAt(lx, lookY, lz);
+  }
+
   render() {
     this.overlays.sync(this); // boss telegraph rings + (opt-in) hitbox overlay
     // trauma-driven shake from COHERENT noise (juice.js) — no Math.random, so a seeded run
@@ -927,16 +948,21 @@ export class Game {
     const sh = this.juice.shakeOffsetXZ(performance.now() / 1000);
     const pan = this.camPan;
     const intro = this._intro;
+    const ap = this._approach;
     if (intro && intro.camProg > 0) {
-      // ADR-0033 entrance push-in: ease the look-target from the room framing toward the boss
-      // and pull the base camera distance/height IN. camProg (0→1→0) is advanced in _updateBossIntro.
-      const p = intro.camProg;
-      const lx = pan.x + (intro.focus.x - pan.x) * p;
-      const lz = pan.z + (intro.focus.z - pan.z) * p;
-      const hy = this.baseCam.y * (1 - p * BOSS_INTRO.camZoom * (1 - BOSS_INTRO.camLift));
-      const bk = this.baseCam.z * (1 - p * BOSS_INTRO.camZoom);
-      this.camera.position.set(lx + sh.x, hy + sh.y, lz + bk + sh.z);
-      this.camera.lookAt(lx, CAMERA.lookAtY, lz);
+      // ADR-0033 boss entrance, CP1 low hero-angle: push in on the boss's FRONT (not its scalp).
+      this._focusCam(intro.focus.x, intro.focus.z, intro.camProg, sh, pan, {
+        camZoom: BOSS_INTRO.camZoom,
+        camHeight: BOSS_INTRO.introCamHeight,
+        lookAtY: BOSS_INTRO.introLookAtY,
+      });
+    } else if (ap && ap.camProg > 0 && ap.boss) {
+      // CP1 human walk-up: ease a framed focus onto the survivor as you approach (gentler framing).
+      this._focusCam(ap.boss.x, ap.boss.z, ap.camProg, sh, pan, {
+        camZoom: HUMAN_APPROACH.camZoom,
+        camHeight: HUMAN_APPROACH.camHeight,
+        lookAtY: HUMAN_APPROACH.camLookAtY,
+      });
     } else {
       this.camera.position.set(
         this.baseCam.x + pan.x + sh.x,

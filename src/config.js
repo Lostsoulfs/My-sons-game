@@ -55,7 +55,11 @@ export const BOSS_INTRO = {
   skipFadeMs: 260, // seen-boss SKIP: snappier eased pull-back from wherever the shot is (no hard cut)
   revealAt: 0.55, // fraction of the push-in when the reveal beat fires (roar/flash/card)
   camZoom: 0.62, // how far to pull the base camera distance IN toward the boss (0=none, 1=on top)
-  camLift: 0.5, // ...keep a fraction of the height so it stays a readable 3/4 view, not top-down
+  // CP1: a LOW hero angle. At full push-in the camera drops to introCamHeight and the look-target
+  // rises to the boss's torso (introLookAtY); camera BELOW the target ⇒ we look UP at the boss's
+  // FRONT and it looms — instead of the old high 3/4 (camLift) that framed the top of its head.
+  introCamHeight: 4, // camera Y at full push-in (low; was a high 3/4 → scalp shot)
+  introLookAtY: 5, // look-target height on the boss (torso/head)
   trauma: 0.35, // screen-shake punch on the reveal beat (juice trauma², ~boss-death range)
   particles: 26, // cosmetic burst at the boss on reveal (pooled, non-rng)
   wallInset: 4, // how far off the wall the boss stands (mirrors DUO.spawnZOffset)
@@ -64,9 +68,16 @@ export const BOSS_INTRO = {
 
 // ---- human decision-boss APPROACH mini-scene (ADR-0033) — buildup before the A/B/C/D choice ----
 export const HUMAN_APPROACH = {
-  approachRadius: 6, // walk within this of the survivor to trigger the choice (or press interact)
+  approachRadius: 5, // CP1: walk within this of the survivor to OPEN the choice (tightened 6→5)
   civilians: 3, // ambient (passive) survivors standing around him for tension
-  buildupMinMs: 700, // don't let the choice fire for at least this long (a beat to read the room)
+  buildupMinMs: 900, // CP1: a longer beat to actually walk up before the choice can fire (700→900)
+  // CP1 walk-up CAMERA: ease a framed focus onto the survivor as you close the gap (the "zoom +
+  // walk up" beat) so he reads as the target, not one of the crowd. Gentler than a boss reveal.
+  camFocusFrom: 18, // start easing the camera onto him once a player is within this distance
+  camMaxProg: 0.75, // how far the focus eases in (0..1)
+  camZoom: 0.45, // horizontal pull-in toward him at full focus
+  camHeight: 16, // camera Y at full focus (a framed 3/4 on the survivor)
+  camLookAtY: 3.5, // look-target height on the survivor
 };
 
 // ---- lighting + fog (scene.js) ----

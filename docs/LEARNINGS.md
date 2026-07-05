@@ -948,3 +948,28 @@ base*(1+growth)^i`. Removed the hand-set per-floor `diff` from `PROGRESSION.floo
   `spawnMargin{X,Z}`/`spawnWallPad`/`spawnMaxTries`). Pure literal-for-config swap, same values,
   no behavior change — these render modules aren't unit-covered, so the build + value-equality
   is the proof. Gate green: lint, format:check, 371 tests, build.
+
+## 2026-07-05 — CP1 cinematic feel fixes (boss camera + human walk-up)
+
+- **The boss intro framed the top of the head because the push-in kept the camera HIGH and looked at
+  the ground.** Old math (`game.js` render): `hy = baseCam.y·(1 − p·camZoom·(1−camLift))` → camLift 0.5
+  left the camera ~33u up, `lookAt(_, CAMERA.lookAtY=0, _)` aimed at the floor → a ~71° down (scalp)
+  angle. Fix = a LOW hero angle: drop the camera to an absolute `introCamHeight` (4) and RAISE the
+  look-target to the boss's torso `introLookAtY` (5), lerped by `camProg`. Camera below the target ⇒
+  it looks UP. Verified on the live instance via `_focusCam`: at full push the camera sits `(0,4,−9)`
+  looking at a boss at z=−20 with pitch **+5.2° (up)** — was steeply down. All knobs, tune in feel-test.
+- **A "high 3/4 via a lift multiplier" can't reach an up-angle** — the multiplier form (`baseY·(1−…)`)
+  only scales height DOWN toward 0, never below the look-target. Switching to an ABSOLUTE target height
+  - an absolute look-target height is what unlocks looking up. Replaced `camLift` with
+    `introCamHeight`+`introLookAtY`.
+- **The human choice "popped instantly while he stood in the crowd" wasn't a missing proximity gate —
+  it was a missing CAMERA.** `render()` only special-cased `this._intro`; `HUMAN_APPROACH` fell through
+  to the normal follow cam, so there was no focus/zoom onto the survivor (a `Boss`, ringed by passive
+  civilian `Npc`s). Fix: reuse one shared `_focusCam(fx,fz,p,sh,pan,cfg)` helper; drive an `_approach.
+camProg` from the nearest player's DISTANCE to him (smoothstep over `camFocusFrom→approachRadius`) so
+  the zoom eases in AS you walk up and peaks right when the choice opens (dist ≤ approachRadius, after
+  `buildupMinMs`). Dropped the press-to-open bypass — proximity is the trigger now (matches Scott's
+  "when you get closer the screen pops up"). Tightened radius 6→5, buildup 700→900ms.
+- **Render-only, no test coverage** (camera math runs in `render()`, outside the Vitest include) — so
+  verify by exercising the real helper on `window.__game` and computing the pitch, NOT by screenshot
+  (hidden-tab throttle). 396 tests unchanged; lint/format/build green.
