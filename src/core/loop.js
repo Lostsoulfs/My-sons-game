@@ -16,15 +16,19 @@
  * @param {(dt:number)=>void} o.update
  * @param {(alpha:number)=>void} o.render
  * @param {()=>number} [o.timeScale]
+ * @param {(frameMs:number)=>void} [o.onFrame] per-frame hook with the RAW (unclamped) wall-clock
+ *   frame time in ms — used by the adaptive perf guard; kept out of the sim so it can't affect it.
  */
-export function startLoop({ step = 1 / 60, update, render, timeScale = () => 1 }) {
+export function startLoop({ step = 1 / 60, update, render, timeScale = () => 1, onFrame }) {
   let last = performance.now();
   let acc = 0;
 
   function frame(now) {
-    let dt = (now - last) / 1000;
+    const frameMs = now - last; // raw, unclamped — the true frame period for FPS measurement
+    let dt = frameMs / 1000;
     last = now;
-    if (dt > 0.25) dt = 0.25; // clamp after a tab-switch / breakpoint
+    if (dt > 0.25) dt = 0.25; // clamp after a tab-switch / breakpoint (sim only)
+    if (onFrame) onFrame(frameMs);
 
     acc += dt * timeScale();
     let guard = 0;

@@ -654,6 +654,21 @@ export const GRAPHICS = {
     ao: { enabled: false }, // skip N8AO (expensive even on real iGPUs)
     floor: { enabled: false }, // flat PALETTE.ground instead of the PBR asphalt set (also skips texture load)
   },
+  // FPS-3: ADAPTIVE auto-downgrade (core/graphics.js createPerfGuard). The boot tier can't KNOW a
+  // machine is slow — a real iGPU/old laptop isn't a "software" renderer and navigator.webdriver is
+  // often false (verified: the headless iGPU preview boots 'high'). So we MEASURE: if visible
+  // frame-time stays below `minFps` across a rolling window (after a warm-up), drop the heavy LIVE
+  // knobs once (postfx off → no bloom/AO, shadows off, pixelRatio 1) — no reload, no persisted setting.
+  // Never trips on a fast GPU (the 5060 sits ~165fps); hidden/background frames are ignored (the rAF
+  // throttle is not GPU lag); single hitches (tab-return, GC) are ignored. Restore any time with
+  // `?gfx=high` or the ✨ reduced-effects toggle. Turn the whole guard off with enabled:false.
+  autoLow: {
+    enabled: true,
+    minFps: 40, // sustained visible FPS below this (over a full window) trips the one-time downgrade
+    windowMs: 2000, // measuring-window length in ms of visible render time
+    graceMs: 1500, // warm-up skipped before sampling (shader compile + asset-decode jank on frame 1)
+    maxFrameMs: 500, // ignore any frame longer than this (tab-return/GC/breakpoint) — not steady lag
+  },
   bloom: {
     enabled: true, // FPS-1: A/B the bloom pass live in the debug "Graphics" folder
     intensity: 1.15, // glow strength (raised 0.8→1.15 — brighter threats; still luminance-gated so the dark world stays dark)

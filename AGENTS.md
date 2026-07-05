@@ -107,6 +107,24 @@ contradicts a core rule. The repo-specific rules follow in the sections below.
   offer a "research it" option (web search + weigh trade-offs), but never act on
   the conclusion automatically — the final call is always his.
 
+### Review scope — match the reviewer to the bug class (don't double-review)
+
+Each automated bot owns a lane; don't spend agent tokens (a Workflow / adversarial review)
+re-finding what they already catch for free on every PR:
+
+- **CodeQL** (required check) — security/correctness static analysis (prototype pollution,
+  unsafe sanitization). Gates merges.
+- **CodeRabbit** — diff-level correctness + style + maintainability. Advisory, but read it.
+- **Codacy / SonarCloud** — complexity/duplication metrics. Advisory only (red on ~every PR;
+  duplication is scoped in `sonar-project.properties`). Never gate on these.
+- **Agent/Workflow adversarial review (costs tokens) — reserve for the lane the bots CAN'T
+  see:** gameplay-semantic / feel bugs, cross-system contracts (audio fallback, save
+  versioning, co-op death/revive), and invariants (seeded determinism ADR-0013, pool
+  teardown/leaks, state-machine transitions). Run it **deep on gameplay/systems PRs**; go
+  **light or skip on pure content/data PRs** (new weapon rows, boss config) where tests + the
+  bots suffice. Every finding is **adversarially verified** (try to REFUTE it) before it's
+  surfaced, so a human's time is never spent on a false positive.
+
 ## Agent safety
 
 Prompt injection is the top LLM risk (OWASP LLM Top 10). Defaults here:

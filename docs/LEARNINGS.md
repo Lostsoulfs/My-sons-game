@@ -887,3 +887,36 @@ base*(1+growth)^i`. Removed the hand-set per-floor `diff` from `PROGRESSION.floo
   `probeRendererString` never throws (try/catch + `?.loseContext()`), frees its context, and returns
   '' when the debug_renderer_info ext is unavailable → tier stays 'high' (safe default: never wrongly
   downgrades a real player). Verified: 387 tests pass, lint clean, build clean.
+
+## 2026-07-04 — self-audit: the boot tier never fixed the machine that lagged (ADR-0034)
+
+- **The miss, named honestly:** FPS-2's boot tier was shipped and called done, but a live probe of
+  the headless Iris-Xe preview — the exact box that chokes — showed `window.__gfxTier === 'high'`,
+  `navigator.webdriver === false`, renderer `ANGLE (Intel … Iris Xe …)` (so `isSoftwareRenderer` is
+  correctly false), shadows ON. **A real weak GPU is indistinguishable from a strong one by string +
+  webdriver alone**, so it booted full-ultra; the only "fix" was remembering `?gfx=low` — a
+  workaround. Root process error: I stopped at "the screenshot timeout is a hidden-tab throttle,
+  unfixable by graphics" (true, but only half the story) instead of asking the production question —
+  _"is this environment running a pipeline it can't handle, and should it adapt?"_ AGENTS.md #4:
+  don't call something done/unfixable on the first diagnosis. **Verify the resolved state in the
+  TARGET environment, not just that the code merged.**
+- **The fix that measurement — not guessing — buys:** `createPerfGuard` (pure, `core/graphics.js`)
+  watches real frame-time and drops the heavy live knobs once (postfx off, shadows off, pixelRatio 1)
+  when visible FPS stays < `minFps` over a window. A renderer string can't say "too slow for _this_
+  scene"; the frame rate can. Fast GPU never trips (165 ≫ 40) → owner untouched; any weak box
+  self-heals with no allow-list to maintain.
+- **The three false-positive guards each map to a real hazard** (all live-verified in-browser via the
+  Vite-served module, since the tab can't be foregrounded): (1) **hidden frames ignored** — a
+  backgrounded tab throttles rAF to ~1 Hz; that looks like 1 fps but is the browser pausing, not GPU
+  lag, so the guard skips `visible === false` frames (proved: 30×1000 ms hidden frames → no fire);
+  (2) **warm-up** skips shader-compile/asset-decode jank on frame 1; (3) **single hitch > maxFrameMs**
+  (tab-return, GC) dropped AND resets the window so one spike can't trip it. Positive proof: 60×100 ms
+  visible frames (10 fps) → fires exactly once, then latches.
+- **Kept it a safety net, not a slider:** applied directly (not via the persisted `reducedEffects`
+  setting) so it never overwrites the player's saved preference; one-way per session (no oscillation);
+  reversible with `?gfx=high` / ✨. Loop stays graphics-free — an optional `onFrame(frameMs)` hook feeds
+  the RAW unclamped frame time (the sim's 0.25 s clamp still applies only to `dt`).
+- **What's still honestly NOT fixed (and shouldn't be):** headless _screenshots_ still time out — that's
+  the hidden-tab rAF throttle, i.e. correct pause-when-backgrounded behavior. Defeating it (a setTimeout
+  fallback tick) would waste a real player's GPU/battery when tabbed away. Verify visuals with
+  synchronous `preview_eval` / `preview_inspect`, never screenshots, on this preview.

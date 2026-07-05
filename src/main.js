@@ -9,7 +9,7 @@ import { Input, isEditable } from './systems/input.js';
 import { Game } from './game.js';
 import { startLoop } from './core/loop.js';
 import { MODELS, GRAPHICS } from './config.js';
-import { resolveGraphicsTier, applyGraphicsPreset } from './core/graphics.js';
+import { resolveGraphicsTier, applyGraphicsPreset, createPerfGuard } from './core/graphics.js';
 import * as audio from './systems/audio.js';
 import { showStartMenu } from './ui/startmenu.js';
 import { settings } from './systems/settings.js';
@@ -147,10 +147,31 @@ function probeRendererString() {
   document.getElementById('settings')?.classList.add('ready'); // reveal once boot clears
   showStartMenu((coop) => game.startRun(coop));
 
+  // FPS-3: adaptive auto-downgrade. If we booted 'high' but this machine can't actually sustain it
+  // (a real iGPU/laptop the boot probe can't detect), MEASURE the frame rate and drop the heavy LIVE
+  // knobs ONCE — no reload. Applied directly (not via the persisted `reducedEffects` setting) so it
+  // never overwrites the player's saved preference; restore with `?gfx=high` or the ✨ toggle. Skipped
+  // entirely when disabled or already booted low. Never trips on a fast GPU. See core/graphics.js.
+  const autoLow = GRAPHICS.autoLow;
+  let onFrame;
+  if (autoLow?.enabled && gfxTier !== 'low') {
+    const sample = createPerfGuard(autoLow);
+    onFrame = (frameMs) => {
+      if (sample(frameMs, document.visibilityState === 'visible')) {
+        postfx?.setEnabled(false); // drop bloom + N8AO (the heaviest passes) → raw render
+        setShadowsEnabled(false); // drop the shadow map
+        setPixelRatioCap(GRAPHICS.lowPreset.pixelRatioCap); // drop to the low-tier ratio (config, not a magic 1)
+        window.__gfxTier = 'auto-low';
+        console.info('[gfx] sustained low FPS → auto-dropped graphics (restore: ?gfx=high or ✨)');
+      }
+    };
+  }
+
   startLoop({
     step: 1 / 60,
     update: (dt) => game.update(dt),
     render: (alpha) => game.render(alpha),
     timeScale: () => game.juice.getTimeScale(),
+    onFrame,
   });
 })();

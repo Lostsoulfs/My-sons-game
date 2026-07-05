@@ -4,6 +4,7 @@ import {
   isSoftwareRenderer,
   resolveGraphicsTier,
   applyGraphicsPreset,
+  createPerfGuard,
 } from '../src/core/graphics.js';
 import { PIXEL_RATIO_CAPS, SHADOW_MAP_SIZES, GRAPHICS } from '../src/config.js';
 
@@ -168,5 +169,67 @@ describe('applyGraphicsPreset', () => {
     expect(g.floor.enabled).toBe(false);
     // coherence: the postfx MASTER stays on (low = cheap pipeline, not raw render)
     expect(g.enabled).toBe(true);
+  });
+});
+
+describe('createPerfGuard (FPS-3 adaptive downgrade)', () => {
+  // feed n frames of `frameMs`; return whether it fired at any point
+  const feed = (guard, frameMs, n, visible = true) => {
+    let fired = false;
+    for (let i = 0; i < n; i++) fired = guard(frameMs, visible) || fired;
+    return fired;
+  };
+
+  it('never fires during the warm-up grace period, even at a terrible frame rate', () => {
+    const g = createPerfGuard({ minFps: 30, windowMs: 1000, graceMs: 500, maxFrameMs: 500 });
+    // 200ms frames = 5fps (well below 30) but still inside the 500ms warm-up → must not fire
+    expect(g(200, true)).toBe(false); // warmed 200
+    expect(g(200, true)).toBe(false); // warmed 400, still < 500
+    expect(g.hasFired()).toBe(false);
+  });
+
+  it('fires exactly once after sustained low FPS, then stays latched', () => {
+    const g = createPerfGuard({ minFps: 30, windowMs: 1000, graceMs: 100, maxFrameMs: 500 });
+    feed(g, 50, 3); // burn the 100ms warm-up
+    let fires = 0;
+    for (let i = 0; i < 40; i++) if (g(100, true)) fires++; // 100ms frames = 10fps
+    expect(fires).toBe(1);
+    expect(g.hasFired()).toBe(true);
+  });
+
+  it('never fires on a healthy frame rate (a fast GPU is untouched)', () => {
+    const g = createPerfGuard({ minFps: 30, windowMs: 1000, graceMs: 100, maxFrameMs: 500 });
+    expect(feed(g, 16.7, 500)).toBe(false); // ~60fps forever
+    expect(g.hasFired()).toBe(false);
+  });
+
+  it('ignores hidden frames — a backgrounded rAF throttle is not GPU lag', () => {
+    const g = createPerfGuard({ minFps: 30, windowMs: 1000, graceMs: 100, maxFrameMs: 500 });
+    // 1s "frames" (1fps) but tab hidden → must never trip, and must not corrupt the window
+    expect(feed(g, 1000, 100, /* visible */ false)).toBe(false);
+    expect(feed(g, 16.7, 300, true)).toBe(false); // a healthy VISIBLE run still doesn't fire
+  });
+
+  it('ignores a single giant hitch (tab-return / GC) and resets the partial window', () => {
+    const g = createPerfGuard({ minFps: 30, windowMs: 1000, graceMs: 0, maxFrameMs: 500 });
+    for (let i = 0; i < 5; i++) g(100, true); // half-fill the window with slow frames
+    expect(g(5000, true)).toBe(false); // a 5s hitch is dropped + resets the window
+    expect(feed(g, 16.7, 300, true)).toBe(false); // no false fire from the pre-hitch frames
+  });
+
+  it('does not fire when FPS sits exactly at the threshold (uses strict <)', () => {
+    const g = createPerfGuard({ minFps: 20, windowMs: 1000, graceMs: 0, maxFrameMs: 500 });
+    let fired = false;
+    for (let i = 0; i < 60; i++) fired = g(50, true) || fired; // 50ms = exactly 20fps
+    expect(fired).toBe(false);
+  });
+
+  it('the real GRAPHICS.autoLow config is well-formed and enabled by default', () => {
+    expect(GRAPHICS.autoLow.enabled).toBe(true);
+    expect(GRAPHICS.autoLow.minFps).toBeGreaterThan(0);
+    expect(GRAPHICS.autoLow.windowMs).toBeGreaterThan(0);
+    expect(GRAPHICS.autoLow.graceMs).toBeGreaterThanOrEqual(0);
+    // the guard must accept the shipped config without throwing
+    expect(typeof createPerfGuard(GRAPHICS.autoLow)).toBe('function');
   });
 });
