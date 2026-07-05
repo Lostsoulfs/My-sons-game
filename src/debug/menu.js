@@ -89,7 +89,7 @@ export function initDebugMenu(game) {
     .add(
       {
         restart() {
-          game.startRun(game.coop);
+          game.startRun(game.coop, game.player?.character ?? 'dad');
         },
       },
       'restart',

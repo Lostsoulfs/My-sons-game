@@ -16,7 +16,7 @@ import {
   FEEL,
   ARENA,
   CAPS,
-  PALETTE,
+  CHARACTERS,
   MENU_CURSOR,
   SAVES,
   PICKUPS,
@@ -36,7 +36,8 @@ import {
   OPPOSITE,
 } from './core/floorplan.js';
 import { Player } from './entities/player.js';
-import { Ally } from './entities/ally.js';
+// NOTE: the AI Ally (entities/ally.js) is DORMANT since CP5 — kept for a future PET system, not
+// spawned in play. 1P is solo (chosen character); 2P is two full Players (Dad + Son).
 import { Enemy } from './entities/enemies.js';
 import { Bullets } from './entities/bullets.js';
 import { Hazards } from './systems/hazards.js';
@@ -102,7 +103,6 @@ export class Game {
     this.players = []; // [p1] or [p1, p2]
     this.player = null; // = players[0]
     this.player2 = null;
-    this.ally = null; // AI ally (single-player only)
     this.state = State.BOOT;
   }
 
@@ -117,10 +117,31 @@ export class Game {
     // players are created in startRun (which the start menu calls)
   }
 
-  startRun(coop = false, seed = (Math.random() * 1e9) | 0) {
+  /** Build a Player from a CHARACTERS key: its color/model/starter weapon + the +/− trait merged
+   *  onto the Echoes baseline (so the trait flows through player._recomputeUpgrades). CP5. */
+  _makePlayer(charKey, device, baseline) {
+    const c = CHARACTERS[charKey] ?? CHARACTERS.dad;
+    const t = c.trait ?? {};
+    const merged = {
+      ...baseline,
+      damage: (baseline.damage ?? 0) + (t.damage ?? 0),
+      fireRate: (baseline.fireRate ?? 0) + (t.fireRate ?? 0),
+      speed: (baseline.speed ?? 0) + (t.speed ?? 0),
+    };
+    return new Player(this.scene, {
+      color: c.color,
+      modelKey: c.modelKey,
+      device,
+      baseline: merged,
+      startWeapon: c.starter,
+      character: charKey,
+    });
+  }
+
+  startRun(coop = false, character = 'dad', seed = (Math.random() * 1e9) | 0) {
     this.coop = coop;
     // Seed defaults to random per run; pass a fixed seed to make a run
-    // reproducible (e.g. window.__game.startRun(false, 12345)) — ADR-0013.
+    // reproducible (e.g. window.__game.startRun(false, 'dad', 12345)) — ADR-0013.
     this.rng = makeRng(seed);
     this.lives = CAPS.lives.start;
     this.checkpointFloor = 0;
@@ -131,22 +152,13 @@ export class Game {
 
     this._teardownActors();
     const baseline = baselineStacks(saves.get());
-    this.player = new Player(this.scene, {
-      color: PALETTE.player,
-      modelKey: 'player',
-      device: coop ? 'kb' : 'both',
-      baseline,
-    });
+    // CP5: 1P is SOLO as the chosen character (no AI ally). 2P is always Dad (P1, kb) + Son (P2, pad).
     if (coop) {
-      this.player2 = new Player(this.scene, {
-        color: PALETTE.ally,
-        modelKey: 'ally',
-        device: 'pad',
-        baseline,
-      });
+      this.player = this._makePlayer('dad', 'kb', baseline);
+      this.player2 = this._makePlayer('son', 'pad', baseline);
       this.players = [this.player, this.player2];
     } else {
-      this.ally = new Ally(this.scene);
+      this.player = this._makePlayer(character, 'both', baseline);
       this.players = [this.player];
     }
     hud.setCoop(coop);
@@ -179,10 +191,8 @@ export class Game {
       this.player2.dispose(this.scene);
       this.scene.remove(this.player2.mesh);
     }
-    if (this.ally) this.scene.remove(this.ally.mesh);
     this.player = null;
     this.player2 = null;
-    this.ally = null;
   }
 
   /** closest living player to a point (null if everyone is down) */
@@ -268,7 +278,6 @@ export class Game {
       // brief spawn grace: no free contact hit if a mob/boss sits on the entry (ADR-0032)
       pl.spawnSafe = pl.alive ? ROOMS.entryGrace : 0;
     });
-    if (this.ally) this.ally.reset(at.x + (at.spread === 'x' ? 1.5 : 0), at.z + 1);
 
     const meta = floorMeta(this.floorIndex);
 
@@ -367,9 +376,9 @@ export class Game {
   update(dt) {
     this.input.update(); // poll gamepad once per tick
 
-    // restart from a finished run
+    // restart from a finished run — keep the same mode + chosen character (CP5)
     if ((this.state === State.DEAD || this.state === State.WIN) && this.input.consumeRestart()) {
-      this.startRun(this.coop);
+      this.startRun(this.coop, this.player?.character ?? 'dad');
       return;
     }
     if ((this.state === State.DEAD || this.state === State.WIN) && this.input.consumeForge()) {
@@ -379,7 +388,6 @@ export class Game {
 
     if (this.state === State.PLAYING) {
       for (const pl of this.players) if (pl.alive) pl.update(dt, this);
-      if (this.ally) this.ally.update(dt, this);
       if (this.duo) this.duo.update(dt); // alternating aggression + enrage-on-death
       for (const e of this.enemies) e.update(dt, this);
       this.bullets.update(dt, this);
@@ -407,7 +415,6 @@ export class Game {
       else if (this.enemies.length === 0) this._onRoomClear();
     } else if (this.state === State.ROOM_CLEAR) {
       for (const pl of this.players) if (pl.alive) pl.update(dt, this);
-      if (this.ally) this.ally.update(dt, this);
       this.bullets.update(dt, this);
       this._handlePickups();
       this._handleSurvivors(dt); // survivors stay helpable after the fight is over
@@ -638,10 +645,8 @@ export class Game {
     if (this.coop) playerTag = pl === this.player ? 'P1' : 'P2';
     showOffer(cards, {
       onPick: (i) => this._onOfferPick(pl, cards, i),
-      solo: !this.coop,
       playerTag,
-      allyWeaponName: !this.coop && this.ally ? this.ally.weaponName : null,
-      onReroll: !this.coop && this.ally ? () => this.ally.rerollWeapon(this.rng) : null,
+      // CP5: the AI-ally weapon reroll is gone (no ally in 1P). A future pet may re-add its own control.
     });
   }
 

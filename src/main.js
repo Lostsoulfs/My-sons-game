@@ -145,7 +145,7 @@ function probeRendererString() {
   // hide the loading splash, then show the start menu (pick 1P or 2P)
   document.getElementById('boot')?.classList.add('hide');
   document.getElementById('settings')?.classList.add('ready'); // reveal once boot clears
-  showStartMenu((coop) => game.startRun(coop));
+  showStartMenu((coop, character) => game.startRun(coop, character));
 
   // FPS-3: adaptive auto-downgrade. If we booted 'high' but this machine can't actually sustain it
   // (a real iGPU/laptop the boot probe can't detect), MEASURE the frame rate and drop the heavy LIVE
