@@ -131,6 +131,27 @@
         letter-spacing: 1px;
         opacity: 0.85;
       }
+      /* CP2: reload/overheat readout — bottom-centre, near the action */
+      #ammo {
+        position: absolute;
+        bottom: 18px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 18px;
+        font-weight: 700;
+        letter-spacing: 2px;
+        font-family: ui-monospace, Menlo, Consolas, monospace;
+        opacity: 0.9;
+      }
+      #ammo.reloading {
+        color: #ffd27a;
+      }
+      #ammo.overheated {
+        color: #ff5a3c;
+        text-shadow:
+          0 0 10px #ff5a3c,
+          0 2px 6px #000;
+      }
       /* ADR-0032 connected-floor minimap: pooled cells, painted by hud.setMinimap */
       #minimap {
         position: absolute;
@@ -774,6 +795,7 @@
       <div id="lives"></div>
       <div id="hearts2"></div>
       <div id="room"></div>
+      <div id="ammo"></div>
       <div id="minimap"></div>
       <div id="bossbars">
         <div class="bossbar" data-i="0">

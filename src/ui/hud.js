@@ -45,6 +45,30 @@ export const hud = {
     el.textContent = `FLOOR ${floor} · ${where}${weaponName ? ` · ${weaponName}` : ''}`;
   },
 
+  // CP2: the active weapon's reload (ballistic) / overheat (energy) readout — bottom-centre.
+  // Called per-frame from render() since the heat gauge bleeds continuously. `info` is
+  // Player.limiterHud() (or null for a limiter-less weapon like the orbital).
+  setLimiter(info) {
+    const el = $('ammo');
+    if (!el) return;
+    if (!info) {
+      el.textContent = '';
+      el.className = '';
+      return;
+    }
+    if (info.kind === 'reload') {
+      el.classList.toggle('reloading', info.reloading);
+      el.classList.remove('overheated');
+      el.textContent = info.reloading ? '⟳ RELOADING…' : `⦿ ${info.ammo} / ${info.clipSize}`;
+    } else {
+      const n = Math.max(0, Math.min(10, Math.round(info.heat * 10)));
+      const bar = '▮'.repeat(n) + '▯'.repeat(10 - n);
+      el.classList.remove('reloading');
+      el.classList.toggle('overheated', info.overheated);
+      el.textContent = info.overheated ? `⚠ OVERHEAT ${bar}` : `HEAT ${bar}`;
+    }
+  },
+
   // the connected-floor minimap (ADR-0032): a pooled grid of absolutely-positioned
   // cells painted from the PURE minimapView model — explored rooms + adjacent
   // unknowns, special-room identity hidden. Event-driven via refreshHud, never per-tick.

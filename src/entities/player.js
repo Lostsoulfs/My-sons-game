@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import {
   PLAYER,
   WEAPONS,
+  WEAPON_LIMITS,
   PALETTE,
   CAPS,
   UPGRADES,
@@ -22,6 +23,8 @@ import { statBonus } from '../core/scaling.js';
 import { itemById, weaponTier } from '../core/items.js';
 import { deriveWeaponFx, rarityIntensity } from '../core/weaponFxDerive.js';
 import { spinUpCooldown } from '../core/spinUp.js';
+import { initClip, tickReload, fireRound, canFireClip } from '../core/reload.js';
+import { initHeat, coolHeat, addHeat, canFireHeat } from '../core/heat.js';
 import { resolveIncoming } from '../core/defense.js';
 import { makeCharacter } from './characterMesh.js';
 import { slideOutOfWalls, clampToArena } from '../systems/collision.js';
@@ -91,6 +94,10 @@ export class Player {
     // per-weapon per-stat upgrade PICK-COUNTS (ADR-0030): key -> {damage,fireRate,pierce,bounces,
     // bulletSpeed,explodeRadius}, each capped at CAPS.upgradesPerStat. Kept on cycle, wiped on replace.
     this._weaponUpgrades = {};
+    // CP2: per-weapon reload (ballistic) / heat (energy) limiter state, keyed by weapon key so it
+    // PERSISTS across weapon swaps (no free reload by switching away and back). Lazily initialised.
+    this._clip = {}; // key -> reload state {ammo, reloading, reloadT}  (core/reload.js)
+    this._heatState = {}; // key -> heat state {heat, overheated}         (core/heat.js)
     this._globalDmgMul = 1; // rare global max-damage reward (multiplies final shot damage, uncapped)
     this.offerRecent = []; // recently-offered item ids → anti-repeat (OFFERS.recentMemory)
     this.offerSeenWeapons = {}; // weapon id → times OFFERED this run (see-it-once decay, ADR-0030)
@@ -125,6 +132,58 @@ export class Player {
     if (!this.weaponDef.orbital) this._hideOrbital(); // stash orbital blades
     this._wUp(this.weapon); // ensure this gun has a per-weapon upgrade entry
     this._recomputeUpgrades(); // derived damage/fire-rate follow the HELD gun (ADR-0030)
+  }
+
+  // --- CP2: reload (ballistic) / overheat (energy) firing limiter ---
+
+  /** the active weapon's limiter descriptor {kind:'reload'|'heat', cfg} — or null (exempt weapons). */
+  _limiter() {
+    const lim = WEAPON_LIMITS[this.weapon];
+    if (lim?.reload) return { kind: 'reload', cfg: lim.reload };
+    if (lim?.heat) return { kind: 'heat', cfg: lim.heat };
+    return null; // e.g. orbital (a passive contact weapon) — no firing limiter
+  }
+
+  /** tick the active weapon's reload/heat by dt (lazy-init on first use); returns can-fire-now. */
+  _tickLimiter(dt) {
+    const lim = this._limiter();
+    if (!lim) return true;
+    const key = this.weapon;
+    if (lim.kind === 'reload') {
+      const st = this._clip[key] ?? (this._clip[key] = initClip(lim.cfg));
+      this._clip[key] = tickReload(st, dt, lim.cfg);
+      return canFireClip(this._clip[key]);
+    }
+    const st = this._heatState[key] ?? (this._heatState[key] = initHeat());
+    this._heatState[key] = coolHeat(st, dt, lim.cfg);
+    return canFireHeat(this._heatState[key]);
+  }
+
+  /** spend a shot on the active weapon's limiter (a round / a puff of heat). Call right after firing. */
+  _consumeShot() {
+    const lim = this._limiter();
+    if (!lim) return;
+    const key = this.weapon;
+    if (lim.kind === 'reload') {
+      const st = this._clip[key] ?? (this._clip[key] = initClip(lim.cfg)); // self-init if unticked
+      this._clip[key] = fireRound(st, lim.cfg);
+    } else {
+      const st = this._heatState[key] ?? (this._heatState[key] = initHeat());
+      this._heatState[key] = addHeat(st, lim.cfg);
+    }
+  }
+
+  /** HUD read-out for the active weapon's limiter (null = no bar to show). */
+  limiterHud() {
+    const lim = this._limiter();
+    if (!lim) return null;
+    const key = this.weapon;
+    if (lim.kind === 'reload') {
+      const st = this._clip[key] ?? initClip(lim.cfg);
+      return { kind: 'reload', ammo: st.ammo, clipSize: lim.cfg.clipSize, reloading: st.reloading };
+    }
+    const st = this._heatState[key] ?? initHeat();
+    return { kind: 'heat', heat: st.heat, overheated: st.overheated };
   }
 
   /** get-or-create the per-weapon upgrade pick-count entry for a gun key (ADR-0030). */
@@ -220,14 +279,16 @@ export class Player {
       this._updateOrbital(dt, game);
     } else if (this.weaponDef.charge) {
       this.fireTimer -= dt;
-      this._updateCharge(dt, game, aim);
+      this._updateCharge(dt, game, aim, this._tickLimiter(dt)); // CP2: reload gates the charge shot
     } else {
       this.fireTimer -= dt;
       const shooting = input.shoot(this.device) && (aim.x !== 0 || aim.z !== 0);
       // minigun spin-up: the fire cadence winds up while the trigger is held, resets on release
       if (this.weaponDef.spinUp) this._spin = shooting ? (this._spin || 0) + dt : 0;
-      if (shooting && this.fireTimer <= 0) {
+      const canFire = this._tickLimiter(dt); // CP2: reload/overheat ticks each frame + gates firing
+      if (shooting && this.fireTimer <= 0 && canFire) {
         this._fireWeapon(game, aim);
+        this._consumeShot(); // spend a round / add heat
         const cd = this.weaponDef.spinUp
           ? spinUpCooldown(this._spin, this.weaponDef.spinUp)
           : this.weaponDef.cooldown;
@@ -352,9 +413,10 @@ export class Player {
   }
 
   // --- Charge Cannon: hold to charge, release a bigger/stronger cannonball ---
-  _updateCharge(dt, game, aim) {
+  _updateCharge(dt, game, aim, canFire = true) {
     const aiming = aim.x !== 0 || aim.z !== 0;
     if (this.fireTimer > 0) return; // respect the weapon cooldown between charge shots
+    if (!canFire) return; // CP2: mid-reload — can't charge or fire until the clip is back
     if (game.input.shoot(this.device) && aiming) {
       this._charge = Math.min(this.weaponDef.charge.maxTime, (this._charge || 0) + dt);
       // auto-fire at full charge so a kid who just holds it still shoots
@@ -385,6 +447,7 @@ export class Player {
       fxIntensity: this._fxIntensity,
     });
     this.fireTimer = this.weaponDef.cooldown * this.fireRateMul; // cap charge cadence
+    this._consumeShot(); // CP2: a charged shot spends a round (charge uses a small magazine)
     game.juice.addTrauma(game.JUICE.traumaOnShoot + game.JUICE.traumaChargeBonus * f);
     audio.play(f > 0.6 ? 'chargeShot' : 'shoot');
     if (this.device !== 'kb') game.input.rumble(0.2 + 0.4 * f, 0.1, 60 + f * 80);

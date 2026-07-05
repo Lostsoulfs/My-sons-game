@@ -55,7 +55,11 @@ export const BOSS_INTRO = {
   skipFadeMs: 260, // seen-boss SKIP: snappier eased pull-back from wherever the shot is (no hard cut)
   revealAt: 0.55, // fraction of the push-in when the reveal beat fires (roar/flash/card)
   camZoom: 0.62, // how far to pull the base camera distance IN toward the boss (0=none, 1=on top)
-  camLift: 0.5, // ...keep a fraction of the height so it stays a readable 3/4 view, not top-down
+  // CP1: a LOW hero angle. At full push-in the camera drops to introCamHeight and the look-target
+  // rises to the boss's torso (introLookAtY); camera BELOW the target ⇒ we look UP at the boss's
+  // FRONT and it looms — instead of the old high 3/4 (camLift) that framed the top of its head.
+  introCamHeight: 4, // camera Y at full push-in (low; was a high 3/4 → scalp shot)
+  introLookAtY: 5, // look-target height on the boss (torso/head)
   trauma: 0.35, // screen-shake punch on the reveal beat (juice trauma², ~boss-death range)
   particles: 26, // cosmetic burst at the boss on reveal (pooled, non-rng)
   wallInset: 4, // how far off the wall the boss stands (mirrors DUO.spawnZOffset)
@@ -64,9 +68,16 @@ export const BOSS_INTRO = {
 
 // ---- human decision-boss APPROACH mini-scene (ADR-0033) — buildup before the A/B/C/D choice ----
 export const HUMAN_APPROACH = {
-  approachRadius: 6, // walk within this of the survivor to trigger the choice (or press interact)
+  approachRadius: 5, // CP1: walk within this of the survivor to OPEN the choice (tightened 6→5)
   civilians: 3, // ambient (passive) survivors standing around him for tension
-  buildupMinMs: 700, // don't let the choice fire for at least this long (a beat to read the room)
+  buildupMinMs: 900, // CP1: a longer beat to actually walk up before the choice can fire (700→900)
+  // CP1 walk-up CAMERA: ease a framed focus onto the survivor as you close the gap (the "zoom +
+  // walk up" beat) so he reads as the target, not one of the crowd. Gentler than a boss reveal.
+  camFocusFrom: 18, // start easing the camera onto him once a player is within this distance
+  camMaxProg: 0.75, // how far the focus eases in (0..1)
+  camZoom: 0.45, // horizontal pull-in toward him at full focus
+  camHeight: 16, // camera Y at full focus (a framed 3/4 on the survivor)
+  camLookAtY: 3.5, // look-target height on the survivor
 };
 
 // ---- lighting + fog (scene.js) ----
@@ -1134,6 +1145,39 @@ export const WEAPONS = {
     color: 0xffe27a,
     fx: { kind: 'energy', trail: 'bolt', impact: 'burst' },
   },
+};
+
+// ---- CP2: per-weapon RELOAD (ballistic) / HEAT (energy) limiters — the weapon "downside" ----
+// Ballistic guns fire `clipSize` rounds then reload (`reloadTime` s of downtime). Energy guns build
+// `heatPerShot` and bleed `coolRatePerSec`; at full heat they OVERHEAT until back under `resetHeat`
+// (feathering never overheats — only sustained hosing does). The minigun is ballistic-flavored but
+// uses HEAT (spin-up + overheat, per Scott — no ammo). Orbital is a passive contact weapon → no
+// limiter (omitted). Pure state machines: core/reload.js + core/heat.js. These are CP2 feel-starting
+// values; CP3's power model tunes them so each gun's SUSTAINED dps lands in its rarity band.
+export const WEAPON_LIMITS = {
+  // ballistic → magazine + reload
+  pistol: { reload: { clipSize: 8, reloadTime: 1.0 } },
+  shotgun: { reload: { clipSize: 6, reloadTime: 1.3 } },
+  machinegun: { reload: { clipSize: 40, reloadTime: 1.7 } },
+  rocket: { reload: { clipSize: 4, reloadTime: 1.6 } },
+  homing: { reload: { clipSize: 6, reloadTime: 1.6 } },
+  charge: { reload: { clipSize: 4, reloadTime: 1.5 } },
+  uzi: { reload: { clipSize: 28, reloadTime: 1.6 } },
+  carbine: { reload: { clipSize: 15, reloadTime: 1.2 } },
+  garand: { reload: { clipSize: 8, reloadTime: 1.4 } }, // M1 Garand en-bloc clip = 8 (thematic)
+  thompson: { reload: { clipSize: 30, reloadTime: 1.7 } },
+  ppsh: { reload: { clipSize: 45, reloadTime: 2.0 } }, // drum mag
+  bar: { reload: { clipSize: 20, reloadTime: 1.5 } },
+  browning: { reload: { clipSize: 48, reloadTime: 3.4 } }, // belt-fed → the long reload IS its downside
+  davycrockett: { reload: { clipSize: 2, reloadTime: 2.4 } }, // 2 nukes, then a long reload
+  // energy → overheat gauge
+  laserpistol: { heat: { heatPerShot: 0.08, coolRatePerSec: 0.5, resetHeat: 0.25 } },
+  railgun: { heat: { heatPerShot: 0.14, coolRatePerSec: 0.35, resetHeat: 0.3 } },
+  bouncer: { heat: { heatPerShot: 0.07, coolRatePerSec: 0.5, resetHeat: 0.25 } },
+  maser: { heat: { heatPerShot: 0.12, coolRatePerSec: 0.4, resetHeat: 0.3 } },
+  raygun: { heat: { heatPerShot: 0.16, coolRatePerSec: 0.35, resetHeat: 0.35 } }, // overheats fast
+  plasma: { heat: { heatPerShot: 0.2, coolRatePerSec: 0.3, resetHeat: 0.3 } },
+  minigun: { heat: { heatPerShot: 0.02, coolRatePerSec: 0.25, resetHeat: 0.3 } }, // spin-up + overheat
 };
 
 // ---- pickups you walk over to grab ----
