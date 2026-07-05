@@ -480,6 +480,7 @@ export class Player {
         break;
       case 'TAKE_DAMAGE':
         this.invuln = 0;
+        this.spawnSafe = 0; // forced damage must LAND — clear entry grace too, else hurt() swallows it (ADR-0032)
         this.hurt(magnitude, game);
         break;
       // SPAWN_ENEMIES is handled by the game (it owns spawning)
