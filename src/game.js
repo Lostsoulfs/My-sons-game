@@ -432,6 +432,10 @@ export class Game {
     hidePauseMenu();
     this.state = this._pausedFrom ?? State.PLAYING;
     this.input.clearKeys(); // drop anything held while the menu was up — no stuck movement on resume
+    // drain the one-shot interact edges too — an E pressed while paused must not auto-commit
+    // a survivor/choice pick on the resume tick (adversarial review, ADR-0044)
+    this.input.consumeHelp('both');
+    this.input.consumeLeave('both');
   }
 
   update(dt) {
@@ -502,6 +506,11 @@ export class Game {
       if (this.state === State.ROOM_CLEAR && this.enemies.length) {
         for (const e of this.enemies) e.update(dt, this);
         this.enemies = this.enemies.filter((e) => !e.dead);
+      }
+      // defeat can arrive WITHOUT live enemies here — a survivor/stranger TAKE_DAMAGE at
+      // 1 heart kills in an empty room, and a check hidden behind enemies.length turns that
+      // death into a silent softlock (adversarial review, ADR-0044). Check unconditionally.
+      if (this.state === State.ROOM_CLEAR) {
         const wipe = !this.players.some((p) => p.alive);
         if (this.coop ? wipe : !this.player.alive) this._onDefeat();
       }
@@ -593,24 +602,58 @@ export class Game {
   }
 
   _handleSurvivors(dt) {
-    let near = null;
-    for (const n of this.npcs) {
-      n.update(dt);
-      if (!near && this.players.some((p) => p.alive && n.inRange(p))) near = n;
-    }
-    this.activeNpc = near;
+    for (const n of this.npcs) n.update(dt);
 
-    if (near) {
-      if (near.role) {
-        // ADR-0044 choice-room survivor: one verb — commit to THIS one (walking away is the "no")
-        prompts.show(`${near.name}   [E] Choose`);
-        if (this.input.consumeHelp('both')) this._resolveChoiceSurvivor(near);
-        this.input.consumeLeave('both'); // Q is not a verb here — drop it so it can't leak a LEAVE
-      } else {
-        prompts.show(`${near.name} is trapped!   [E] Help   ·   [Q] Leave`);
-        if (this.input.consumeHelp('both')) this._resolveSurvivor(near, 'HELP');
-        else if (this.input.consumeLeave('both')) this._resolveSurvivor(near, 'LEAVE');
+    // Per-PLAYER proximity, per-DEVICE commit (adversarial review, ADR-0044): each player
+    // interacts with THEIR nearest survivor through THEIR OWN controls — in 2P a far player's
+    // E can no longer commit a pick on a survivor only their partner is near (choice rooms
+    // hold 3 interactable NPCs at once, a first). Solo keeps 'both' (kb + pad are one seat).
+    let prompt = null;
+    this.activeNpc = null;
+    for (const p of this.players) {
+      if (!p.alive) continue;
+      let near = null;
+      let bd = Infinity;
+      for (const n of this.npcs) {
+        if (!n.inRange(p)) continue;
+        const d = (n.x - p.x) ** 2 + (n.z - p.z) ** 2;
+        if (d < bd) {
+          bd = d;
+          near = n;
+        }
       }
+      if (!near) continue;
+      if (!this.activeNpc) this.activeNpc = near;
+      const dev = this.coop ? p.device : 'both';
+      if (near.role) {
+        if (near.role.kind === 'gunsmith' && !near.gun) {
+          // roll the gun on FIRST approach and show its NAME — the stake (your active slot,
+          // its upgrade stacks) is invisible, so this pick must be informed (ADR-0044 rejects
+          // blind picks). One run-rng draw, cached on the npc — walking away never re-rolls.
+          const c = p.offerContext();
+          near.gun = rollGunsmithWeapon(this.rng, {
+            owned: c.owned,
+            luck: c.luck,
+            permLuck: c.permLuck,
+            curse: c.curse,
+          });
+        }
+        prompt =
+          prompt ??
+          (near.role.kind === 'gunsmith'
+            ? `${near.name} offers the ${near.gun.name}   [E] Take it`
+            : `${near.name}   [E] Choose`);
+        if (this.input.consumeHelp(dev)) return this._resolveChoiceSurvivor(near, p);
+        this.input.consumeLeave(dev); // Q is not a verb here — drop it so it can't leak a LEAVE
+      } else {
+        prompt = prompt ?? `${near.name} is trapped!   [E] Help   ·   [Q] Leave`;
+        if (this.input.consumeHelp(dev)) return this._resolveSurvivor(near, 'HELP', p);
+        if (this.input.consumeLeave(dev)) return this._resolveSurvivor(near, 'LEAVE', p);
+      }
+    }
+
+    if (prompt) {
+      prompts.show(prompt);
     } else {
       prompts.hide();
       this.input.consumeHelp('both'); // drop stray presses
@@ -636,12 +679,13 @@ export class Game {
     }
   }
 
-  _resolveSurvivor(npc, choice) {
+  _resolveSurvivor(npc, choice, pl = null) {
     const outcome = resolveDecision(this.rng, choice);
     npc.markUsed();
     this.activeNpc = null;
     prompts.hide();
-    this._applyDecisionOutcome(npc, this.nearestPlayer(npc.x, npc.z) || this.player, outcome);
+    // the COMMITTING player takes the outcome (per-device, ADR-0044); nearest is the solo/legacy path
+    this._applyDecisionOutcome(npc, pl ?? this.nearestPlayer(npc.x, npc.z) ?? this.player, outcome);
 
     // big, lingering feedback so the choice never goes unnoticed
     const label = (choice === 'HELP' ? 'HELPED: ' : 'LEFT THEM: ') + outcome.message;
@@ -657,8 +701,8 @@ export class Game {
    * player, then the unpicked ones slip away (a puff each — one pick per room) and the
    * node is spent. Pick-time rolls ride the RUN rng — the same seam as offers.
    */
-  _resolveChoiceSurvivor(npc) {
-    const pl = this.nearestPlayer(npc.x, npc.z) || this.player;
+  _resolveChoiceSurvivor(npc, pl = null) {
+    pl = pl ?? this.nearestPlayer(npc.x, npc.z) ?? this.player; // per-device committer first (ADR-0044)
     npc.markUsed();
     this.activeNpc = null;
     prompts.hide();
@@ -671,7 +715,13 @@ export class Game {
         msg = 'patches you up. +1 heart';
         break;
       case 'tinkerer': {
-        const stat = CHOICE_ROOM.tinkererStats[this.rng.int(CHOICE_ROOM.tinkererStats.length)];
+        // skip stats the HELD gun has maxed (offers gate these out of the pool too — a reward
+        // that silently no-ops is a lie); SPEED_UP is global + uncapped, so the pool never empties
+        const c = pl.offerContext();
+        const pool = CHOICE_ROOM.tinkererStats.filter(
+          (s) => s === 'SPEED_UP' || (c.weaponStat[s] ?? 0) < c.statCap,
+        );
+        const stat = pool[this.rng.int(pool.length)];
         pl.applyEffect(stat, 0, this); // one stack — the ADR-0022 curve sets the strength
         msg =
           stat === 'SPEED_UP'
@@ -682,13 +732,18 @@ export class Game {
         break;
       }
       case 'gunsmith': {
-        const c = pl.offerContext();
-        const item = rollGunsmithWeapon(this.rng, {
-          owned: c.owned,
-          luck: c.luck,
-          permLuck: c.permLuck,
-          curse: c.curse,
-        });
+        // the gun was rolled + named at first approach (_handleSurvivors) — an informed pick.
+        // The lazy fallback only covers a direct/debug resolve that skipped the prompt.
+        let item = npc.gun;
+        if (!item) {
+          const c = pl.offerContext();
+          item = rollGunsmithWeapon(this.rng, {
+            owned: c.owned,
+            luck: c.luck,
+            permLuck: c.permLuck,
+            curse: c.curse,
+          });
+        }
         pl.applyOfferCard({ id: item.id, tier: item.tier }, this); // registry path → addWeapon
         msg = `hands you the ${item.name}!`;
         break;

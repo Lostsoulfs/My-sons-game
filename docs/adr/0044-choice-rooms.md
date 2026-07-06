@@ -37,6 +37,15 @@ curve (ADR-0030/0036/0037).
   loop; Q is dropped — walking away is the "no"). On commit: the reward lands on the
   choosing player, the unpicked survivors **slip away** (a puff each), the node is
   spent. One pick per room, no take-backs.
+- **The gunsmith is an informed pick** (adversarial review): his gun is rolled on FIRST
+  approach (one run-rng draw, cached — walking away never re-rolls) and the prompt names
+  it (`offers the M1 Garand — [E] Take it`), because with full slots `addWeapon` replaces
+  the ACTIVE gun and wipes its upgrade stacks — an invisible stake would make him a
+  second, unlabeled gamble, and this ADR already rejects blind picks.
+- **Per-player proximity, per-device commit** (adversarial review): each player interacts
+  with THEIR nearest survivor through THEIR OWN controls (`consumeHelp(p.device)` in 2P;
+  solo keeps 'both'). A far partner's E can't commit a pick they can't see, and the
+  reward always lands on the player who pressed.
 - **Cleared semantics:** the node is **NOT marked cleared until the pick** — leaving
   early and returning re-offers the _same trio_ (rolled from `node.layoutSeed`,
   path-independent per ADR-0032). After the pick, the standard cleared-re-entry path
@@ -54,9 +63,19 @@ curve (ADR-0030/0036/0037).
   rng in event order — exactly the seam offers already use (ADR-0013 holds).
 - Pre-win vs post-win pools differ (scavenger) — same seed can differ across save
   states. Inherent and intended: the save is an input, not a leak.
-- In 2P the reward goes to the **choosing** (nearest) player — one pick per room total,
-  so co-op splits the value socially, not mechanically. No anti-farm rule needed (the
-  room grants once, ever).
+- In 2P the reward goes to the player **who pressed** — one pick per room total, so
+  co-op splits the value socially, not mechanically. No anti-farm rule needed (the room
+  grants once, ever).
+- **The stranger's chaser penalty is escapable** through the open doors (walking out
+  despawns them) — accepted as-is: exact parity with the existing post-clear survivor
+  gamble, and running away is a legitimate answer to a bad roll. Locking the doors while
+  his chasers live is a one-block tunable if the risk needs teeth (owner's call).
+- The review also surfaced (and this CP fixes) a **pre-existing softlock**: the
+  ROOM_CLEAR defeat check hid behind `enemies.length`, so a survivor/stranger
+  TAKE_DAMAGE kill in an empty room was never detected. The check now runs
+  unconditionally in ROOM_CLEAR; the tinkerer also skips stats the held gun has maxed
+  (a reward that silently no-ops is a lie), and pause-resume drains stale interact
+  edges so a buffered E can't auto-commit the pick.
 
 ## Alternatives considered
 

@@ -1252,3 +1252,30 @@ heatPerShot − coolRate·cooldown ≤ 0`, `dutyEnergy` returns 1 — i.e. no do
   after startRun and keep multi-step probes in ONE eval.
 - 516 tests (1 new file, 10 tests); gate green; all five grant paths live-verified (the gunsmith
   rolled a minigun — the ultra sliver-weight is real).
+
+## 2026-07-06 — Choice-rooms adversarial review: 8 confirmed across 4 dimensions
+
+- **The defeat check hid behind `enemies.length` — a pre-existing softlock the new feature made
+  routine.** ROOM_CLEAR only checked for dead players inside `if (enemies.length)`; a stranger/
+  survivor TAKE_DAMAGE kill in an EMPTY room (choice rooms are always empty) left a dead,
+  immovable player in a live state forever — no life spent, no respawn, only a refresh. Defeat
+  detection must never be conditioned on live enemies. (Fixed: unconditional check in ROOM_CLEAR.)
+- **An uninformed pick with an invisible stake is a second gamble.** The gunsmith rolled his gun
+  AFTER [E]; with full slots `addWeapon` replaces the ACTIVE gun and deletes its upgrade stacks —
+  up to 9×6 stacks vaporized by a "reward". The ADR itself rejected blind picks, and the review
+  held the code to the doc. (Fixed: roll on first approach, cache on the npc, name it in the
+  prompt — informed, one rng draw, no re-roll.)
+- **`consumeHelp('both')` breaks the moment a room holds >1 interactable NPC.** Every prior room
+  had NPC.perRoom = 1, so first-in-array near + either-device commit was invisible; three role
+  NPCs made "P2's E commits P1's survivor" real. Per-player nearest + per-device consume
+  (`p.device` in co-op) is the general fix — and it retroactively fixes the old survivor too.
+- **Verifiers must read the ADR, not just the code.** The gunsmith confirm leaned on ADR-0044's
+  own "rejects blind picks" line; the heal-availability claim (accurate numbers!) was REJECTED as
+  intended-and-documented behavior. An adversarial pass grounded in the decision record separates
+  defects from design.
+- **Accepted, documented, not fixed:** the stranger's chaser penalty is escapable through the
+  open door — exact parity with the post-clear survivor gamble; locking doors while his chasers
+  live is a one-block tunable if the risk needs teeth (owner's call, noted in the ADR).
+- Determinism dimension came back fully clean (500-seed floorplan identity probe, re-entry
+  stream-position proof, no Math.random in sim paths). 516 tests green post-fix; softlock,
+  gunsmith preview, and tinkerer-cap all re-verified live.
