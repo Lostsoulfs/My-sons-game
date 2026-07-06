@@ -243,6 +243,27 @@ export const NPC = {
   perRoom: 1, // one survivor in survivor-rooms (clearer than two)
 };
 
+// ---- CHOICE room (ADR-0044): the breather dead-end, now a pick ----
+// A few survivors wait mid-room, each carrying ONE reward — choose one, the rest
+// slip away. Roles are the only tell (no tooltips — discovery, per the
+// no-hand-holding rule): what a "Tinkerer" does, you learn by picking one once.
+export const CHOICE_ROOM = {
+  count: 3, // survivors offered per choice room
+  ring: { min: 4.5, max: 6.5 }, // seeded placement ring around the room centre
+  // weight = draw odds (no repeats within a room); color tints the "!" marker.
+  // `echoes` marks the post-win-only role (Echoes are locked until gameBeaten —
+  // core/saves.js addEchoes no-ops pre-beat, so pre-win he simply never shows).
+  pool: {
+    medic: { weight: 3, name: 'Medic', color: 0xff6b6b }, // +1 heart on the spot
+    gunsmith: { weight: 3, name: 'Gunsmith', color: 0xffd18a }, // a gun — tier rides the luck curve
+    tinkerer: { weight: 3, name: 'Tinkerer', color: 0x8ad0ff }, // +1 random stat stack
+    scavenger: { weight: 2, name: 'Scavenger', color: 0xc9a0ff, echoes: true }, // Echoes (post-win)
+    stranger: { weight: 2, name: 'Stranger', color: 0x9aa39a }, // the classic help-gamble, unmarked
+  },
+  scavengerEchoes: 20, // vs. echoesPerBoss 30 — a free-room pick pays less than a boss kill
+  tinkererStats: ['DAMAGE_UP', 'FIRE_RATE_UP', 'SPEED_UP'], // he grabs one at random (run rng)
+};
+
 // ---- per-room tunables (counts/obstacles) ----
 export const ROOMS = {
   baseEnemies: 3, // enemies in a depth-0 room of a floor

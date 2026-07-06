@@ -10,8 +10,8 @@
 //      coin flip (rejectChance) — that's where the organic shape comes from.
 //   3. Collect DEAD ENDS (exactly one neighbour). The BOSS takes the farthest
 //      dead end from the start (the journey); other dead ends host special
-//      rooms (v1: one HEAL room; the type field is the seam for Phase 6b's
-//      shop / mini-boss / curse rooms — contents are a separate layer).
+//      rooms (one CHOICE room, ADR-0044; the type field is the seam for Phase
+//      6b's shop / mini-boss / curse rooms — contents are a separate layer).
 //
 // Two-layer split on purpose: this file owns the floorPLAN (the graph); room
 // CONTENTS stay in systems/spawner.js keyed by { floor, depth, type }.
@@ -135,10 +135,10 @@ function assignDepths(rooms, startId) {
 }
 
 /**
- * Place the boss on the FARTHEST dead end (the floor's journey) and one HEAL room on the
- * next-farthest spare dead end — the v1 special; Phase 6b hangs shop/mini-boss/curse types
- * on the same slot logic. A tree with 2+ rooms always has a non-start dead end. Returns the
- * boss id.
+ * Place the boss on the FARTHEST dead end (the floor's journey) and one CHOICE room
+ * (ADR-0044 — survivors with rewards, pick one) on the next-farthest spare dead end;
+ * Phase 6b hangs shop/mini-boss/curse types on the same slot logic. A tree with 2+
+ * rooms always has a non-start dead end. Returns the boss id.
  */
 function assignSpecials(rooms, startId) {
   // dead ends = exactly one neighbour (the start never hosts a special even if it is one)
@@ -148,7 +148,7 @@ function assignSpecials(rooms, startId) {
   deadEnds.sort((a, b) => b.dist - a.dist);
   const boss = deadEnds[0];
   boss.type = 'boss';
-  if (deadEnds.length > 1) deadEnds[1].type = 'heal';
+  if (deadEnds.length > 1) deadEnds[1].type = 'choice';
   return boss.id;
 }
 
@@ -186,7 +186,7 @@ function assignSurvivors(rng, rooms, survivors) {
  *            neighbours: Record<string, number|null>, dist:number}>,
  *            startId:number, bossId:number, gridSize:number}}
  *   rooms[i].id === i; `dist` is BFS depth from the start; type ∈
- *   'start' | 'normal' | 'heal' | 'boss'. Neighbour links are symmetric.
+ *   'start' | 'normal' | 'choice' | 'boss'. Neighbour links are symmetric.
  *
  * The rng is consumed in a fixed order — expansion coin-flips, then per-node layout
  * seeds, then the survivor picks — so the seed→floor mapping stays stable (ADR-0013).

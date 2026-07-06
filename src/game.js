@@ -24,6 +24,7 @@ import {
   ROOMS,
   BOSS_INTRO,
   HUMAN_APPROACH,
+  CHOICE_ROOM,
 } from './config.js';
 import { State } from './states.js';
 import { makeRng } from './core/rng.js';
@@ -50,6 +51,8 @@ import { buildRoom } from './systems/rooms.js';
 import { populateRoom } from './systems/spawner.js';
 import { resolveDecision } from './systems/npcDecision.js';
 import { resolveHuman } from './systems/humanDecision.js';
+import { Npc } from './entities/npc.js'; // ADR-0044: choice-room reward-carriers
+import { rollChoiceSurvivors, rollGunsmithWeapon } from './core/choiceRoom.js';
 import { circleVsBox, circleVsCircle, springCritDampedXZ } from './core/math2d.js';
 import { cameraTarget } from './core/camera.js';
 import { settings } from './systems/settings.js';
@@ -326,12 +329,16 @@ export class Game {
       return;
     }
 
-    // Special room (interim breather): pre-cleared, no offer, one guaranteed +1 HEART mid-room.
-    // Hearts are +1 everywhere except a rare +2 from bosses (Scott's rule). NEXT: this becomes a
-    // "choice room" with random survivors + a pick (and a shop seam later) — see docs/plans.
-    if (node.type === 'heal') {
-      node.cleared = true;
-      this.spawnPickup('HEART', 0, 0);
+    // CHOICE room (ADR-0044): the breather dead-end. A few survivors wait mid-room, each
+    // carrying ONE reward — walk up to one, [E] Choose, and the rest slip away. No combat,
+    // doors open. The node is NOT marked cleared until the pick lands, so leaving early and
+    // coming back re-offers the SAME trio (layoutRng → path-independent, ADR-0032); after
+    // the pick, the cleared re-entry path above serves an empty breather. Shop seam later.
+    if (node.type === 'choice') {
+      const set = rollChoiceSurvivors(layoutRng, { gameBeaten: saves.get().gameBeaten });
+      for (const s of set) {
+        this.npcs.push(new Npc(this.scene, s.x, s.z, s.name, { role: s }));
+      }
       this.room.openDoors();
       this.state = State.ROOM_CLEAR;
       hud.hideBanner();
@@ -594,9 +601,16 @@ export class Game {
     this.activeNpc = near;
 
     if (near) {
-      prompts.show(`${near.name} is trapped!   [E] Help   ·   [Q] Leave`);
-      if (this.input.consumeHelp('both')) this._resolveSurvivor(near, 'HELP');
-      else if (this.input.consumeLeave('both')) this._resolveSurvivor(near, 'LEAVE');
+      if (near.role) {
+        // ADR-0044 choice-room survivor: one verb — commit to THIS one (walking away is the "no")
+        prompts.show(`${near.name}   [E] Choose`);
+        if (this.input.consumeHelp('both')) this._resolveChoiceSurvivor(near);
+        this.input.consumeLeave('both'); // Q is not a verb here — drop it so it can't leak a LEAVE
+      } else {
+        prompts.show(`${near.name} is trapped!   [E] Help   ·   [Q] Leave`);
+        if (this.input.consumeHelp('both')) this._resolveSurvivor(near, 'HELP');
+        else if (this.input.consumeLeave('both')) this._resolveSurvivor(near, 'LEAVE');
+      }
     } else {
       prompts.hide();
       this.input.consumeHelp('both'); // drop stray presses
@@ -604,12 +618,8 @@ export class Game {
     }
   }
 
-  _resolveSurvivor(npc, choice) {
-    const outcome = resolveDecision(this.rng, choice);
-    npc.markUsed();
-    this.activeNpc = null;
-    prompts.hide();
-
+  /** land a help/leave outcome on the world: hostile spawns ring the NPC, buffs hit `pl`. */
+  _applyDecisionOutcome(npc, pl, outcome) {
     if (outcome.effect === 'SPAWN_ENEMIES') {
       for (let i = 0; i < outcome.magnitude; i++) {
         // Spawn on a ring so enemies don't land on the player standing next to the NPC.
@@ -622,9 +632,16 @@ export class Game {
         this.addEnemy(new Enemy(this.scene, 'chaser', ox, oz));
       }
     } else {
-      const pl = this.nearestPlayer(npc.x, npc.z) || this.player;
       pl.applyEffect(outcome.effect, outcome.magnitude, this);
     }
+  }
+
+  _resolveSurvivor(npc, choice) {
+    const outcome = resolveDecision(this.rng, choice);
+    npc.markUsed();
+    this.activeNpc = null;
+    prompts.hide();
+    this._applyDecisionOutcome(npc, this.nearestPlayer(npc.x, npc.z) || this.player, outcome);
 
     // big, lingering feedback so the choice never goes unnoticed
     const label = (choice === 'HELP' ? 'HELPED: ' : 'LEFT THEM: ') + outcome.message;
@@ -632,6 +649,80 @@ export class Game {
     setTimeout(() => hud.hideBanner(), 1500);
     this.juice.hitStop(0.08);
     audio.play(outcome.good ? 'good' : 'bad');
+    this.refreshHud();
+  }
+
+  /**
+   * ADR-0044: commit to one choice-room survivor. Grant their reward to the choosing
+   * player, then the unpicked ones slip away (a puff each — one pick per room) and the
+   * node is spent. Pick-time rolls ride the RUN rng — the same seam as offers.
+   */
+  _resolveChoiceSurvivor(npc) {
+    const pl = this.nearestPlayer(npc.x, npc.z) || this.player;
+    npc.markUsed();
+    this.activeNpc = null;
+    prompts.hide();
+
+    let msg = '';
+    let good = true;
+    switch (npc.role.kind) {
+      case 'medic':
+        pl.applyEffect('HEART', 1, this); // +1 everywhere except rare boss +2 (Scott's rule)
+        msg = 'patches you up. +1 heart';
+        break;
+      case 'tinkerer': {
+        const stat = CHOICE_ROOM.tinkererStats[this.rng.int(CHOICE_ROOM.tinkererStats.length)];
+        pl.applyEffect(stat, 0, this); // one stack — the ADR-0022 curve sets the strength
+        msg =
+          stat === 'SPEED_UP'
+            ? 'oils your boots. Faster feet'
+            : stat === 'FIRE_RATE_UP'
+              ? 'tunes your gun. Faster shots'
+              : 'sharpens your rounds. More damage';
+        break;
+      }
+      case 'gunsmith': {
+        const c = pl.offerContext();
+        const item = rollGunsmithWeapon(this.rng, {
+          owned: c.owned,
+          luck: c.luck,
+          permLuck: c.permLuck,
+          curse: c.curse,
+        });
+        pl.applyOfferCard({ id: item.id, tier: item.tier }, this); // registry path → addWeapon
+        msg = `hands you the ${item.name}!`;
+        break;
+      }
+      case 'scavenger':
+        // post-win-only role (the roller gates it) — addEchoes' own gate is the backstop
+        saves.addEchoes(CHOICE_ROOM.scavengerEchoes);
+        msg = `slips you ${CHOICE_ROOM.scavengerEchoes} Echoes`;
+        break;
+      case 'stranger': {
+        // the classic gamble, wearing a coat — same outcome table as helping a survivor
+        const outcome = resolveDecision(this.rng, 'HELP');
+        this._applyDecisionOutcome(npc, pl, outcome);
+        msg = outcome.message;
+        good = outcome.good;
+        break;
+      }
+    }
+
+    // the ones you didn't choose slip away — one pick per room, no take-backs
+    for (const n of this.npcs) {
+      if (n.role && n !== npc) {
+        this.particles.burst(n.x, n.z, 8, n.role.color);
+        this.scene.remove(n.mesh);
+        this.scene.remove(n.marker);
+      }
+    }
+    this.npcs = this.npcs.filter((n) => !n.role || n === npc);
+    this._node().cleared = true; // the room is spent — re-entry is an empty breather
+
+    hud.banner(`${npc.role.name.toUpperCase()}: ${msg}`);
+    setTimeout(() => hud.hideBanner(), 1500);
+    this.juice.hitStop(0.08);
+    audio.play(good ? 'good' : 'bad');
     this.refreshHud();
   }
 
