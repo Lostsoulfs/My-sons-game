@@ -1215,3 +1215,67 @@ heatPerShot − coolRate·cooldown ≤ 0`, `dutyEnergy` returns 1 — i.e. no do
   ×0.9885 cd → 1.0115/(0.55·0.9885) ≈ 1.86 DPS ≈ 48% of a BASE pistol player (3.85), and the share
   only shrinks as the player takes in-run offers. `rateFloor` 0.5 is unreachable by ~40× (needs
   bl.fireRate = 1.0 vs the real max 0.023).
+
+## 2026-07-05 — CP-E run modes (backfill): the mode is a floorMeta parameter, not a state machine
+
+- **One seam beats a fork.** Story vs Endless never branches game.js flow — `floorMeta(i, mode)`
+  is the single divergence point (endless: `isLastFloor` always false + defs cycle `i % floorCount`
+  - `rampMul^floorsPastStory` on the diff). Everything downstream (doors, checkpoints, Echoes,
+    best-floor) just works because it already consumed `floorMeta`, not raw indices.
+- **Gate at RESOLVE, not at UI.** `resolveMode(requested, gameBeaten)` re-runs inside `startRun`,
+  so a pre-win console call / hand-edited menu can't sneak endless in; the hidden menu row is UX,
+  not security. Junk input ('ENDLESS', null) degrades to story — a typo can't invent a mode.
+- **Bit-identity is a testable claim:** `floorMeta(i)` must `toEqual(floorMeta(i,'story'))` on
+  every story floor — locked in tests/modes.test.js so no future endless tweak can drift story.
+- **Vite dual-module trap (again):** a preview_eval `import('/src/core/saves.js')` got a DIFFERENT
+  singleton than the app graph — `saves.reset()` there didn't reset the app's save, faking a gate
+  failure. Verify save-dependent gates via a clean reload (or `window.__saves`), never via a
+  re-imported module instance.
+
+## 2026-07-06 — Choice rooms (ADR-0044): the breather slot becomes a pick
+
+- **The seams were pre-built — assembly, not architecture.** Special dead-end slot (ADR-0032),
+  survivor prompt loop, `resolveDecision`, layout seeds, offer tier weights: the whole feature is
+  ~1 pure module + a loadNode branch + one resolver. When a feature's verbs already exist
+  (walk-up + [E]), reusing them beats a bespoke overlay — the offer-card modal was RIGHT THERE and
+  still the wrong call (the fantasy is choosing a person, not a card).
+- **Cleared-flag timing IS the re-entry contract.** The choice node stays uncleared until the pick
+  lands: leave-and-return re-offers the same trio (layoutSeed → path-independent), and the
+  standard cleared path serves the spent room. No new state, no `choiceUsed` flag — the existing
+  flag, moved one beat later.
+- **Gate a reward at the POOL, not the grant.** `saves.addEchoes` already no-ops pre-win, but a
+  scavenger who "grants" nothing pre-win would be a silent lie — so pre-win he never enters the
+  draw. Both gates stay (config `echoes: true` marks the role; the saves gate is the backstop).
+- **Preview idle-death regenerates the floorplan.** Between preview_eval probes the unattended
+  player gets eaten; death → checkpoint respawn → the floor REGENERATES (ADR-0032) → your cached
+  node ids point into a DIFFERENT plan (a 'choice' id turns 'normal'). Set `godMode = true` right
+  after startRun and keep multi-step probes in ONE eval.
+- 516 tests (1 new file, 10 tests); gate green; all five grant paths live-verified (the gunsmith
+  rolled a minigun — the ultra sliver-weight is real).
+
+## 2026-07-06 — Choice-rooms adversarial review: 8 confirmed across 4 dimensions
+
+- **The defeat check hid behind `enemies.length` — a pre-existing softlock the new feature made
+  routine.** ROOM_CLEAR only checked for dead players inside `if (enemies.length)`; a stranger/
+  survivor TAKE_DAMAGE kill in an EMPTY room (choice rooms are always empty) left a dead,
+  immovable player in a live state forever — no life spent, no respawn, only a refresh. Defeat
+  detection must never be conditioned on live enemies. (Fixed: unconditional check in ROOM_CLEAR.)
+- **An uninformed pick with an invisible stake is a second gamble.** The gunsmith rolled his gun
+  AFTER [E]; with full slots `addWeapon` replaces the ACTIVE gun and deletes its upgrade stacks —
+  up to 9×6 stacks vaporized by a "reward". The ADR itself rejected blind picks, and the review
+  held the code to the doc. (Fixed: roll on first approach, cache on the npc, name it in the
+  prompt — informed, one rng draw, no re-roll.)
+- **`consumeHelp('both')` breaks the moment a room holds >1 interactable NPC.** Every prior room
+  had NPC.perRoom = 1, so first-in-array near + either-device commit was invisible; three role
+  NPCs made "P2's E commits P1's survivor" real. Per-player nearest + per-device consume
+  (`p.device` in co-op) is the general fix — and it retroactively fixes the old survivor too.
+- **Verifiers must read the ADR, not just the code.** The gunsmith confirm leaned on ADR-0044's
+  own "rejects blind picks" line; the heal-availability claim (accurate numbers!) was REJECTED as
+  intended-and-documented behavior. An adversarial pass grounded in the decision record separates
+  defects from design.
+- **Accepted, documented, not fixed:** the stranger's chaser penalty is escapable through the
+  open door — exact parity with the post-clear survivor gamble; locking doors while his chasers
+  live is a one-block tunable if the risk needs teeth (owner's call, noted in the ADR).
+- Determinism dimension came back fully clean (500-seed floorplan identity probe, re-entry
+  stream-position proof, no Math.random in sim paths). 516 tests green post-fix; softlock,
+  gunsmith preview, and tinkerer-cap all re-verified live.

@@ -90,24 +90,24 @@ describe('boss + special placement', () => {
     }
   });
 
-  it('exactly one start, one boss; a heal room appears when a spare dead end exists', () => {
+  it('exactly one start, one boss; a choice room appears when a spare dead end exists', () => {
     for (const s of SEEDS) {
       const plan = gen(s);
       const types = plan.rooms.map((r) => r.type);
       expect(types.filter((t) => t === 'start')).toHaveLength(1);
       expect(types.filter((t) => t === 'boss')).toHaveLength(1);
-      expect(types.filter((t) => t === 'heal').length).toBeLessThanOrEqual(1);
+      expect(types.filter((t) => t === 'choice').length).toBeLessThanOrEqual(1);
     }
   });
 
-  it('the heal room (when present) is never the boss or the start', () => {
+  it('the choice room (when present) is never the boss or the start', () => {
     for (const s of SEEDS) {
-      const heal = gen(s).rooms.find((r) => r.type === 'heal');
-      if (heal) {
-        expect(heal.type).toBe('heal'); // trivially true — the real assert is the ids differ
+      const choice = gen(s).rooms.find((r) => r.type === 'choice');
+      if (choice) {
+        expect(choice.type).toBe('choice'); // trivially true — the real assert is the ids differ
         const plan = gen(s);
-        expect(plan.rooms.find((r) => r.type === 'heal').id).not.toBe(plan.bossId);
-        expect(plan.rooms.find((r) => r.type === 'heal').id).not.toBe(plan.startId);
+        expect(plan.rooms.find((r) => r.type === 'choice').id).not.toBe(plan.bossId);
+        expect(plan.rooms.find((r) => r.type === 'choice').id).not.toBe(plan.startId);
       }
     }
   });
