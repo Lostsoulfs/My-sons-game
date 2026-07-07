@@ -1303,8 +1303,17 @@ heatPerShot − coolRate·cooldown ≤ 0`, `dutyEnergy` returns 1 — i.e. no do
   can turn out good AND bad." Karma broke that on purpose: Help rolls (leaning bad) + always
   +karma; Leave never rolls (safe) + always −karma. The test now locks the NEW contract, incl. a
   distribution check that helping's bad-rate really is > 0.5.
-- **Tuning flag for the owner:** with cursePerPoint 0.34 + curseWeight 0.5, the negative side
-  FLOORS around −6 karma (curse ≈ 2) while the range runs to −12 — headroom for the future Echo
-  vendor, but the low end saturates fast. Left as the playtest knob, called out in the ADR.
+- **A signed dial must use its whole range — adversarial review caught a dead zone.** First cut
+  had cursePerPoint 0.34, which floored the drop multiplier at karma −5; −5 through −12 (⅔ of the
+  negative dial) all produced identical drops while the pause menu kept ticking the number down —
+  invisible-but-confusing. Fix: size cursePerPoint (0.14) so the floor is only reached near the
+  −12 clamp, making every point live. Lesson: when a raw number is shown with no blurb, an inert
+  stretch of its range reads as a bug to the player even if the code is "correct."
+- **Verifiers grounded in the ADR separate defects from feel-opinions.** The review REJECTED
+  "helping at 1 heart is a 30% forced death" as a tuning opinion (the branch didn't introduce it;
+  the choice-rooms softlock fix is present and covers it) but CONFIRMED the dead-zone as a real,
+  player-observable economy nit. Determinism + wiring/co-op came back fully clean (LEAVE consuming
+  0 rng doesn't desync any seeded path; weightedChoice always draws a fixed count, so karma changes
+  WHICH card is picked, never HOW MANY rng draws).
 - 527 tests (2 new files, 1 rewritten); help→+karma / leave→−karma / risk / clamp / drop-shift /
   pause row all live-verified. Stacked on the choice-rooms branch (the Stranger earns karma too).

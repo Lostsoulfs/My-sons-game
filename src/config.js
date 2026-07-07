@@ -1495,7 +1495,10 @@ export const LUCK = {
 export const KARMA = {
   max: 12, // karma clamps to ±this (about a dozen decisive acts swings you fully good/bad)
   luckPerPoint: 0.6, // each +karma ≈ this many luck "stacks" of good-drop bias (through the D2 curve)
-  cursePerPoint: 0.34, // each −karma ≈ this much curse (≈3 cold choices → one full curse point)
+  // each −karma ≈ this much curse. Sized so the WHOLE negative range is live: at baseline luck the
+  // drop floor (curse ≈ 1.7) is only reached near the −12 clamp, so every point from −1 to −12 dims
+  // drops meaningfully (no inert dead zone). Lower to soften the slide; raise to bite sooner.
+  cursePerPoint: 0.14,
   helpGain: 1, // +karma for HELPING a survivor (the deed earns it even if the help goes bad)
   leaveLoss: 1, // −karma for LEAVING one (the safe choice, but it costs your standing)
   helpGoodChance: 0.4, // HELP's odds of a GOOD outcome — LOWER than the old 0.5: helping is riskier now

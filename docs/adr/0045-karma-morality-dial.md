@@ -54,10 +54,12 @@ choices matter.
   the seeded run rng; the drop split is pure. No new rng consumption in spawn paths.
 - **Co-op:** karma is shared (one run, one standing) — both players' choices move the same dial,
   and it lands on whoever committed (per-device, inherited from ADR-0044). No per-player split.
-- **Tuning is a playtest knob, flagged:** with the defaults, the _negative_ side saturates around
-  −6 karma (curse ≈ 2 floors the multiplier at zero luck) while the range runs to −12. That's
-  deliberate headroom for a future second negative source, but `KARMA.cursePerPoint` /
-  `LUCK.curseWeight` are the dials if the low end should spread more gently. Owner tunes by feel.
+- **Tuning is a playtest knob, flagged:** `cursePerPoint` (0.14) is sized so the WHOLE negative
+  range is live — at baseline luck the drop floor (curse ≈ 1.7) is only reached near the −12 clamp,
+  so every point from −1 to −12 dims drops meaningfully (an earlier 0.34 left the bottom two-thirds
+  inert — adversarial review caught it). `KARMA.cursePerPoint` / `LUCK.curseWeight` are the dials if
+  the slide should be gentler or bite sooner; the positive side rides Fortune's asymptote and never
+  saturates. Owner tunes by feel.
 
 ## Alternatives / deferred
 
