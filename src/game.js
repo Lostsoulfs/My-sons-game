@@ -53,6 +53,7 @@ import { resolveDecision } from './systems/npcDecision.js';
 import { resolveHuman } from './systems/humanDecision.js';
 import { Npc } from './entities/npc.js'; // ADR-0044: choice-room reward-carriers
 import { rollChoiceSurvivors, rollGunsmithWeapon } from './core/choiceRoom.js';
+import { clampKarma, karmaDropInputs } from './core/karma.js'; // ADR-0045: the signed morality dial
 import { circleVsBox, circleVsCircle, springCritDampedXZ } from './core/math2d.js';
 import { cameraTarget } from './core/camera.js';
 import { settings } from './systems/settings.js';
@@ -104,6 +105,7 @@ export class Game {
 
     this.coop = false;
     this.mode = 'story'; // CP-E (ADR-0043): 'story' | 'endless' — set per run in startRun
+    this.karma = 0; // ADR-0045: signed run morality (help + / leave −); feeds the drop curve. Per-run.
     this.players = []; // [p1] or [p1, p2]
     this.player = null; // = players[0]
     this.player2 = null;
@@ -167,6 +169,7 @@ export class Game {
     this.lives = CAPS.lives.start;
     this.checkpointFloor = 0;
     this.bossesBeaten = 0;
+    this.karma = 0; // ADR-0045: a fresh run starts morally neutral
     // reset the camera pan so a new run starts centered (no carry-over from a prior run)
     this.camPan.x = this.camPan.z = 0;
     this.camVel.x = this.camVel.z = 0;
@@ -423,6 +426,7 @@ export class Game {
       players: this.players,
       coop: this.coop,
       demon: this.demon ? this.demon.statsSnapshot() : null, // CP-C: the seal's inherited stats
+      karma: this.karma, // ADR-0045: the run's morality standing (raw signed number)
       mapView: minimapView(this.floorplan, { currentId: this.nodeId, explored: this.explored }),
       onResume: () => this._resume(),
     });
@@ -635,7 +639,7 @@ export class Game {
             owned: c.owned,
             luck: c.luck,
             permLuck: c.permLuck,
-            curse: c.curse,
+            ...this._karmaInputs(), // ADR-0045: karma bends the gunsmith's tier too (curse + bonusLuck)
           });
         }
         prompt =
@@ -659,6 +663,18 @@ export class Game {
       this.input.consumeHelp('both'); // drop stray presses
       this.input.consumeLeave('both');
     }
+  }
+
+  /** ADR-0045: move the run's karma by `delta` (clamped to ±KARMA.max). Positive = good deeds
+   *  (helping), negative = cold/corrupt choices (leaving; later, dosing Echo). Feeds the drop curve. */
+  addKarma(delta) {
+    if (!delta) return;
+    this.karma = clampKarma(this.karma + delta);
+  }
+
+  /** ADR-0045: the karma-derived offer/gunsmith inputs — { bonusLuck, curse } for the drop curve. */
+  _karmaInputs() {
+    return karmaDropInputs(this.karma);
   }
 
   /** land a help/leave outcome on the world: hostile spawns ring the NPC, buffs hit `pl`. */
@@ -686,6 +702,7 @@ export class Game {
     prompts.hide();
     // the COMMITTING player takes the outcome (per-device, ADR-0044); nearest is the solo/legacy path
     this._applyDecisionOutcome(npc, pl ?? this.nearestPlayer(npc.x, npc.z) ?? this.player, outcome);
+    this.addKarma(outcome.karma); // ADR-0045: help +, leave − — bends this run's luck
 
     // big, lingering feedback so the choice never goes unnoticed
     const label = (choice === 'HELP' ? 'HELPED: ' : 'LEFT THEM: ') + outcome.message;
@@ -741,7 +758,7 @@ export class Game {
             owned: c.owned,
             luck: c.luck,
             permLuck: c.permLuck,
-            curse: c.curse,
+            ...this._karmaInputs(), // ADR-0045
           });
         }
         pl.applyOfferCard({ id: item.id, tier: item.tier }, this); // registry path → addWeapon
@@ -754,9 +771,11 @@ export class Game {
         msg = `slips you ${CHOICE_ROOM.scavengerEchoes} Echoes`;
         break;
       case 'stranger': {
-        // the classic gamble, wearing a coat — same outcome table as helping a survivor
+        // the classic gamble, wearing a coat — same outcome table as helping a survivor,
+        // so it earns the same karma (choosing the Stranger IS choosing to help — ADR-0045)
         const outcome = resolveDecision(this.rng, 'HELP');
         this._applyDecisionOutcome(npc, pl, outcome);
+        this.addKarma(outcome.karma);
         msg = outcome.message;
         good = outcome.good;
         break;
@@ -859,8 +878,13 @@ export class Game {
       return;
     }
     this._offerPlayer = pl;
-    // seeded (ADR-0013) → reproducible; bossTier guarantees a rare+ card on boss clears (ADR-0030)
-    const cards = generateOffer(this.rng, { ...pl.offerContext(), bossTier: this._offerBoss });
+    // seeded (ADR-0013) → reproducible; bossTier guarantees a rare+ card on boss clears (ADR-0030).
+    // ADR-0045: karma (a per-run, game-level dial) injects the curse/bonusLuck the drop curve reads.
+    const cards = generateOffer(this.rng, {
+      ...pl.offerContext(),
+      ...this._karmaInputs(),
+      bossTier: this._offerBoss,
+    });
     pl.noteOffered(cards.map((c) => c.id));
     let playerTag = null;
     if (this.coop) playerTag = pl === this.player ? 'P1' : 'P2';

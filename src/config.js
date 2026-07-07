@@ -1484,6 +1484,22 @@ export const LUCK = {
   curseLuckDamp: 0.5, // …damped by luck: offset = curse·curseWeight·(1 − curseLuckDamp·luckBonus/max)
   goodMulMin: 0.15, // floor on the rare+ multiplier under heavy curse (drops thin out, never vanish)
 };
+
+// KARMA (ADR-0045): the signed morality dial. Starts at 0 each run; HELPING survivors nudges it
+// up (a risky good deed — see npcDecision), LEAVING them nudges it down (safe, but it darkens you).
+// Karma feeds the SAME tested drop curve as luck/curse (core/luck.js): positive karma → bonus luck
+// (rides the D2 asymptote, never a guarantee), negative karma → curse (the tested downward pressure).
+// One point per decision is coarse on purpose; luckPerPoint/cursePerPoint scale it into the curve so
+// a single choice nudges rather than nukes the economy. (The 2nd negative source — dosing Echo for
+// temp power at a vendor — is the follow-on CP; this ships the dial + the "helping" source.)
+export const KARMA = {
+  max: 12, // karma clamps to ±this (about a dozen decisive acts swings you fully good/bad)
+  luckPerPoint: 0.6, // each +karma ≈ this many luck "stacks" of good-drop bias (through the D2 curve)
+  cursePerPoint: 0.34, // each −karma ≈ this much curse (≈3 cold choices → one full curse point)
+  helpGain: 1, // +karma for HELPING a survivor (the deed earns it even if the help goes bad)
+  leaveLoss: 1, // −karma for LEAVING one (the safe choice, but it costs your standing)
+  helpGoodChance: 0.4, // HELP's odds of a GOOD outcome — LOWER than the old 0.5: helping is riskier now
+};
 // B9: weapon-mod amounts (applied to the player's guns via the existing BULLET behavior flags)
 export const WEAPON_MODS = {
   pierce: 1, // +enemies a shot passes through, per pick

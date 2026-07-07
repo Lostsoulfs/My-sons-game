@@ -655,7 +655,8 @@ export class Player {
       ownedCount: this.slots.length,
       luck: this._up.luck, // in-run positive dial (the engine clamps it)
       permLuck: this._baseline.luck, // CP4: permanent Fortune luck → the D2 offer curve
-      curse: 0, // CP4: negative dial — math is wired; the SOURCE (ambush spawns) is Phase 6b
+      // ADR-0045: curse + bonusLuck are KARMA-derived and injected by the GAME at the offer roll
+      // (karma is a per-run, game-level dial, not a per-player field), so offerContext omits them.
       globalDamageFlat: this._globalDamageFlat, // CP4: gate GLOBAL_DAMAGE once its flat stacks max out
       seenWeapons: this.offerSeenWeapons, // see-it-once weapon decay
       commonStreak: this.offerCommonStreak,

@@ -9,7 +9,7 @@
 
 import { hud } from './hud.js';
 import { settings } from '../systems/settings.js';
-import { statRows, demonRows } from '../core/statsPanel.js';
+import { statRows, demonRows, karmaRows } from '../core/statsPanel.js';
 import { saves } from '../core/saves.js';
 import { META_UPGRADES, WEAPONS } from '../config.js';
 
@@ -17,7 +17,7 @@ const $ = (id) => document.getElementById(id);
 const cap = (s) => (typeof s === 'string' && s ? s[0].toUpperCase() + s.slice(1) : s);
 const weaponName = (key) => WEAPONS[key]?.name || cap(key);
 
-let _ctx = null; // { players, coop, demon?, mapView, onResume } — demon = its statsSnapshot (CP-C)
+let _ctx = null; // { players, coop, demon?, karma?, mapView, onResume } — demon = its statsSnapshot (CP-C)
 
 export function showPauseMenu(ctx = {}) {
   _ctx = ctx;
@@ -140,6 +140,20 @@ function renderStats(body) {
     const col = el('div', 'pause-statcol');
     col.appendChild(el('div', 'pause-statcol-head', '😈 Demon'));
     for (const sec of demonRows(_ctx.demon)) {
+      col.appendChild(
+        section(
+          sec.title,
+          sec.rows.map((r) => row(r.label, r.value)),
+        ),
+      );
+    }
+    cols.appendChild(col);
+  }
+  // ADR-0045: the run's karma — a single game-level column (help +, leave/dose −). Raw, no blurb.
+  if (_ctx?.karma != null) {
+    const col = el('div', 'pause-statcol');
+    col.appendChild(el('div', 'pause-statcol-head', '☯ Standing'));
+    for (const sec of karmaRows(_ctx.karma)) {
       col.appendChild(
         section(
           sec.title,

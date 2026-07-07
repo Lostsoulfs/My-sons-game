@@ -65,7 +65,7 @@ export function rollChoiceSurvivors(rng, opts = {}) {
  * Ultra weapons stay in at their sliver of a weight — the gunsmith can surprise you.
  *
  * @param {{next:()=>number, int:(n:number)=>number}} rng the RUN rng (pick-time seam)
- * @param {{owned?: string[], luck?: number, permLuck?: number, curse?: number}} [ctx]
+ * @param {{owned?: string[], luck?: number, permLuck?: number, curse?: number, bonusLuck?: number}} [ctx]
  * @returns {{id:string, name:string, tier:string}} a weapon item from the registry
  */
 export function rollGunsmithWeapon(rng, ctx = {}) {
@@ -74,6 +74,7 @@ export function rollGunsmithWeapon(rng, ctx = {}) {
     inRunLuck: luck,
     permLuck: ctx.permLuck ?? 0,
     curse: ctx.curse ?? 0,
+    bonusLuck: ctx.bonusLuck ?? 0, // ADR-0045: positive karma lifts the gunsmith's tier too
   });
 
   const gunsIn = (t) => (itemsByTier[t] ?? []).filter((it) => it.category === 'weapon');

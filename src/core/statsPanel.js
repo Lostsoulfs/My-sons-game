@@ -90,3 +90,18 @@ export function demonRows(d = {}) {
     },
   ];
 }
+
+/**
+ * ADR-0045: the run's KARMA — a single signed number (help +, leave/dose −), shown raw. It's a
+ * per-RUN, game-level value (not per-player), so it's its own tiny section rather than a player
+ * column. No blurb (no-hand-holding): what it does to your luck is for the player to notice.
+ * A SEPARATE export (like demonRows) so the locked statRows contract never drifts.
+ *
+ * @param {number} karma signed run karma
+ * @returns {Array<{title:string, rows:Array<{label:string,value:string}>}>}
+ */
+export function karmaRows(karma = 0) {
+  const k = Math.trunc(n(karma));
+  const signed = k > 0 ? `+${k}` : String(k); // 0 → "0", never "+0"
+  return [{ title: 'Standing', rows: [{ label: 'Karma', value: signed }] }];
+}
