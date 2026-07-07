@@ -40,9 +40,33 @@ choices matter.
 - **Karma is injected at the game level** where offers/gunsmith rolls happen (not inside
   `Player.offerContext`, which is per-player) — `generateOffer` and `rollGunsmithWeapon` receive
   `{ bonusLuck, curse }` from `karmaDropInputs(game.karma)`.
-- **Pause-menu readout:** a raw signed **Karma** row (`core/statsPanel.js karmaRows`, a separate
-  export like `demonRows`), shown once per run. No blurb — the no-hand-holding rule holds; what
-  karma does to your luck is for the player to notice.
+- **Pause-menu readout:** a signed **Karma** row + a world-facing **title** (`karmaRows` +
+  `karmaTitle`, separate exports like `demonRows`). No blurb — the no-hand-holding rule holds.
+
+## v2 layer — CP-K1 (research-informed, 2026-07-06)
+
+A deep-research pass ([../design/2026-07-06-karma-research.md](../design/2026-07-06-karma-research.md))
+validated the math (same DR family as Diablo 2 magic find; capped loot-dial like Isaac's 0–10 Luck;
+floored curse like Gungeon's hidden anti-runaway; 3-choice draft like Hades) but flagged three risks:
+tying morality **only** to loot is the #1 failure mode (ME2), a hidden number **feels invisible**
+(Isaac's derided Luck "dump stat"), and since **most players play good** (~59%, 90%+ Paragon), a
+risky-good path must **pay perceptibly**, not punish. The owner chose: broaden karma into
+**corruption/standing** (loot = one facet) and **keep helping risky but make the reward felt**.
+CP-K1 is the first slice — legibility + felt reward — without touching the validated math:
+
+- **Standing titles** (`KARMA.titles`, `karmaTitle()` pure): Saint / Good Samaritan / Decent /
+  Unmarked / Cold / Marked / Forsaken — the world names you, so the dial is legible with no tooltip
+  (Fallout's "Relevant Deeds"). Shown in the pause menu next to the raw number.
+- **Felt feedback on every karma move**: a warm-gold (rising) / cold-violet (falling) particle
+  flourish + micro hit-stop, and the survivor banner names the delta and any title crossing —
+  so the invisible number becomes a visible beat.
+- **A once-per-run boon on first reaching each positive title** (`KARMA.titleBoonHeal`): the good
+  path PAYS a felt reward (a heart), not just a hidden weight nudge. Tracked in a per-run set so a
+  player can't oscillate a band boundary to farm it; negative crossings announce but grant nothing.
+
+Deferred to later CPs of the arc: NPC trust/prices (needs the shop), deep-negative **danger +
+visible corruption**, and a **karma-gated ending**. Loot stays a facet; it is no longer the whole
+payoff.
 
 ## Consequences
 

@@ -31,3 +31,23 @@ export function karmaDropInputs(karma = 0, cfg = KARMA) {
   if (k >= 0) return { bonusLuck: k * cfg.luckPerPoint, curse: 0 };
   return { bonusLuck: 0, curse: -k * cfg.cursePerPoint };
 }
+
+/**
+ * CP-K1: the STANDING TITLE for a karma value — the first band whose `at` ≤ karma, scanned high→low.
+ * PURE. Makes the dial legible without a tooltip (the world names you). Clamps first so out-of-range
+ * karma still resolves to the top/bottom band.
+ * @param {number} karma
+ * @param {{titles:Array<{at:number,name:string}>}} [cfg]
+ * @returns {string} the band name
+ */
+export function karmaTitle(karma = 0, cfg = KARMA) {
+  const k = clampKarma(karma);
+  const bands = cfg.titles ?? [];
+  for (const b of bands) if (k >= b.at) return b.name; // titles are authored high→low
+  return bands.length ? bands[bands.length - 1].name : '';
+}
+
+/** CP-K1: is this karma a POSITIVE standing (a band at ≥ 1)? Drives the once-per-run title boon. PURE. */
+export function isPositiveKarma(karma = 0) {
+  return clampKarma(karma) >= 1;
+}

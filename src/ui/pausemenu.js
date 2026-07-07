@@ -10,6 +10,7 @@
 import { hud } from './hud.js';
 import { settings } from '../systems/settings.js';
 import { statRows, demonRows, karmaRows } from '../core/statsPanel.js';
+import { karmaTitle } from '../core/karma.js';
 import { saves } from '../core/saves.js';
 import { META_UPGRADES, WEAPONS } from '../config.js';
 
@@ -153,7 +154,7 @@ function renderStats(body) {
   if (_ctx?.karma != null) {
     const col = el('div', 'pause-statcol');
     col.appendChild(el('div', 'pause-statcol-head', '☯ Standing'));
-    for (const sec of karmaRows(_ctx.karma)) {
+    for (const sec of karmaRows(_ctx.karma, karmaTitle(_ctx.karma))) {
       col.appendChild(
         section(
           sec.title,

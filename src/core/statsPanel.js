@@ -100,8 +100,11 @@ export function demonRows(d = {}) {
  * @param {number} karma signed run karma
  * @returns {Array<{title:string, rows:Array<{label:string,value:string}>}>}
  */
-export function karmaRows(karma = 0) {
+export function karmaRows(karma = 0, title = '') {
   const k = Math.trunc(n(karma));
   const signed = k > 0 ? `+${k}` : String(k); // 0 → "0", never "+0"
-  return [{ title: 'Standing', rows: [{ label: 'Karma', value: signed }] }];
+  const rows = [{ label: 'Karma', value: signed }];
+  // CP-K1: the world-facing title makes the raw number legible (Isaac's Luck was a hidden dump stat)
+  if (title) rows.push({ label: 'Seen as', value: title });
+  return [{ title: 'Standing', rows }];
 }

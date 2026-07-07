@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { KARMA, LUCK } from '../src/config.js';
-import { clampKarma, karmaDropInputs } from '../src/core/karma.js';
+import { clampKarma, karmaDropInputs, karmaTitle, isPositiveKarma } from '../src/core/karma.js';
 import { goodDropMultiplier } from '../src/core/luck.js';
 
 // ADR-0045: karma is a SIGNED dial that splits into the tested drop curve — positive → bonus luck,
@@ -79,5 +79,38 @@ describe('karma actually moves the drop curve (both ways, within its guarantees)
     // stack max good karma on top of max luck — still capped at 1 + LUCK.max
     const m = goodDropMultiplier({ inRunLuck: 14, permLuck: 6, ...karmaDropInputs(KARMA.max) });
     expect(m).toBeLessThanOrEqual(1 + LUCK.max + 1e-9);
+  });
+});
+
+describe('karmaTitle — the legibility band (CP-K1)', () => {
+  it('resolves every karma in range to a non-empty band, monotonic top→bottom', () => {
+    const names = [];
+    for (let k = KARMA.max; k >= -KARMA.max; k--) {
+      const t = karmaTitle(k);
+      expect(typeof t).toBe('string');
+      expect(t.length).toBeGreaterThan(0);
+      names.push(t);
+    }
+    // titles only ever change as karma falls, never oscillate (bands are contiguous)
+    const distinct = names.filter((t, i) => i === 0 || t !== names[i - 1]);
+    expect(new Set(distinct).size).toBe(distinct.length);
+  });
+
+  it('picks the first band whose threshold is reached (high→low), clamping the extremes', () => {
+    expect(karmaTitle(12)).toBe('Saint');
+    expect(karmaTitle(9)).toBe('Saint');
+    expect(karmaTitle(8)).toBe('Good Samaritan');
+    expect(karmaTitle(1)).toBe('Decent');
+    expect(karmaTitle(0)).toBe('Unmarked');
+    expect(karmaTitle(-1)).toBe('Cold');
+    expect(karmaTitle(-8)).toBe('Marked');
+    expect(karmaTitle(-999)).toBe('Forsaken'); // clamps to the bottom band
+  });
+
+  it('isPositiveKarma is true only at a genuine positive standing (≥ +1)', () => {
+    expect(isPositiveKarma(1)).toBe(true);
+    expect(isPositiveKarma(12)).toBe(true);
+    expect(isPositiveKarma(0)).toBe(false); // neutral is not a positive standing
+    expect(isPositiveKarma(-3)).toBe(false);
   });
 });

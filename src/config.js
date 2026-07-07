@@ -1502,6 +1502,21 @@ export const KARMA = {
   helpGain: 1, // +karma for HELPING a survivor (the deed earns it even if the help goes bad)
   leaveLoss: 1, // −karma for LEAVING one (the safe choice, but it costs your standing)
   helpGoodChance: 0.4, // HELP's odds of a GOOD outcome — LOWER than the old 0.5: helping is riskier now
+  // CP-K1 (ADR-0045 v2, research-informed): STANDING TITLES. A hidden number feels invisible (Isaac's
+  // "dump stat" Luck); a title the world names makes the dial legible without a tooltip (Fallout's
+  // "Relevant Deeds"). Bands are matched by the FIRST whose `at` ≤ karma, scanned high→low. Positive
+  // bands (at ≥ 1) grant a one-time felt boon the first time you reach them this run (the good path
+  // must PAY — most players play good). Names lean Atomic-Age moral, not cutesy.
+  titles: [
+    { at: 9, name: 'Saint' },
+    { at: 5, name: 'Good Samaritan' },
+    { at: 1, name: 'Decent' },
+    { at: 0, name: 'Unmarked' },
+    { at: -4, name: 'Cold' },
+    { at: -8, name: 'Marked' },
+    { at: -12, name: 'Forsaken' },
+  ],
+  titleBoonHeal: 1, // +hearts granted once per positive title first reached this run (the felt reward)
 };
 // B9: weapon-mod amounts (applied to the player's guns via the existing BULLET behavior flags)
 export const WEAPON_MODS = {
