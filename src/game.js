@@ -25,6 +25,7 @@ import {
   BOSS_INTRO,
   HUMAN_APPROACH,
   CHOICE_ROOM,
+  KARMA,
 } from './config.js';
 import { State } from './states.js';
 import { makeRng } from './core/rng.js';
@@ -53,6 +54,7 @@ import { resolveDecision } from './systems/npcDecision.js';
 import { resolveHuman } from './systems/humanDecision.js';
 import { Npc } from './entities/npc.js'; // ADR-0044: choice-room reward-carriers
 import { rollChoiceSurvivors, rollGunsmithWeapon } from './core/choiceRoom.js';
+import { clampKarma, karmaDropInputs, karmaTitle, isPositiveKarma } from './core/karma.js'; // ADR-0045
 import { circleVsBox, circleVsCircle, springCritDampedXZ } from './core/math2d.js';
 import { cameraTarget } from './core/camera.js';
 import { settings } from './systems/settings.js';
@@ -104,6 +106,8 @@ export class Game {
 
     this.coop = false;
     this.mode = 'story'; // CP-E (ADR-0043): 'story' | 'endless' — set per run in startRun
+    this.karma = 0; // ADR-0045: signed run morality (help + / leave −); feeds the drop curve. Per-run.
+    this._karmaTitlesAwarded = new Set(); // CP-K1: positive standing titles already boon'd this run
     this.players = []; // [p1] or [p1, p2]
     this.player = null; // = players[0]
     this.player2 = null;
@@ -167,6 +171,8 @@ export class Game {
     this.lives = CAPS.lives.start;
     this.checkpointFloor = 0;
     this.bossesBeaten = 0;
+    this.karma = 0; // ADR-0045: a fresh run starts morally neutral
+    this._karmaTitlesAwarded.clear(); // CP-K1: re-earn the title boons each run
     // reset the camera pan so a new run starts centered (no carry-over from a prior run)
     this.camPan.x = this.camPan.z = 0;
     this.camVel.x = this.camVel.z = 0;
@@ -423,6 +429,7 @@ export class Game {
       players: this.players,
       coop: this.coop,
       demon: this.demon ? this.demon.statsSnapshot() : null, // CP-C: the seal's inherited stats
+      karma: this.karma, // ADR-0045: the run's morality standing (raw signed number)
       mapView: minimapView(this.floorplan, { currentId: this.nodeId, explored: this.explored }),
       onResume: () => this._resume(),
     });
@@ -635,7 +642,7 @@ export class Game {
             owned: c.owned,
             luck: c.luck,
             permLuck: c.permLuck,
-            curse: c.curse,
+            ...this._karmaInputs(), // ADR-0045: karma bends the gunsmith's tier too (curse + bonusLuck)
           });
         }
         prompt =
@@ -659,6 +666,39 @@ export class Game {
       this.input.consumeHelp('both'); // drop stray presses
       this.input.consumeLeave('both');
     }
+  }
+
+  /** ADR-0045: move the run's karma by `delta` (clamped to ±KARMA.max). Positive = good deeds
+   *  (helping), negative = cold/corrupt choices (leaving; later, dosing Echo). Feeds the drop curve.
+   *  CP-K1: fires a felt flourish and, on first reaching a positive STANDING title this run, a boon.
+   *  Returns a milestone `{title, boon}` when the title band changed (else null) so the caller can
+   *  fold it into its banner — keeping karma feedback legible WITHOUT a competing banner. */
+  addKarma(delta) {
+    if (!delta) return null;
+    const before = this.karma;
+    this.karma = clampKarma(this.karma + delta);
+    if (this.karma === before) return null; // already clamped — no change, no feedback
+    // felt flourish: a burst at the keeper, warm-gold rising / cold-violet falling (research: the
+    // dial must be SEEN, not just a hidden number). Cheap, honors reducedEffects via the pool cap.
+    const up = this.karma > before;
+    this.particles.burst(this.player.x, this.player.z, 12, up ? 0xffd18a : 0x7a4a6a);
+    this.juice.hitStop(0.05);
+    const tBefore = karmaTitle(before);
+    const tAfter = karmaTitle(this.karma);
+    if (tBefore === tAfter) return null;
+    // reaching a NEW positive standing (once per band per run) → a felt reward: the good path must
+    // PAY (research: most players play good; the risky good deed can't be pure punishment).
+    if (isPositiveKarma(this.karma) && !this._karmaTitlesAwarded.has(tAfter)) {
+      this._karmaTitlesAwarded.add(tAfter);
+      for (const p of this.players) if (p.alive) p.applyEffect('HEAL', KARMA.titleBoonHeal, this);
+      return { title: tAfter, boon: KARMA.titleBoonHeal };
+    }
+    return { title: tAfter, boon: 0 }; // a crossing (neutral/negative) — announce, no boon
+  }
+
+  /** ADR-0045: the karma-derived offer/gunsmith inputs — { bonusLuck, curse } for the drop curve. */
+  _karmaInputs() {
+    return karmaDropInputs(this.karma);
   }
 
   /** land a help/leave outcome on the world: hostile spawns ring the NPC, buffs hit `pl`. */
@@ -686,14 +726,32 @@ export class Game {
     prompts.hide();
     // the COMMITTING player takes the outcome (per-device, ADR-0044); nearest is the solo/legacy path
     this._applyDecisionOutcome(npc, pl ?? this.nearestPlayer(npc.x, npc.z) ?? this.player, outcome);
+    const milestone = this.addKarma(outcome.karma); // ADR-0045: help +, leave − — bends this run's luck
 
-    // big, lingering feedback so the choice never goes unnoticed
-    const label = (choice === 'HELP' ? 'HELPED: ' : 'LEFT THEM: ') + outcome.message;
+    // big, lingering feedback so the choice never goes unnoticed — now also names the karma move +
+    // any standing-title crossing (CP-K1: legible through play, no tooltip)
+    const label =
+      (choice === 'HELP' ? 'HELPED: ' : 'LEFT THEM: ') +
+      outcome.message +
+      this._karmaTag(milestone);
     hud.banner(label);
-    setTimeout(() => hud.hideBanner(), 1500);
+    setTimeout(() => hud.hideBanner(), 1800);
     this.juice.hitStop(0.08);
     audio.play(outcome.good ? 'good' : 'bad');
     this.refreshHud();
+  }
+
+  /** CP-K1: the karma feedback suffix for a survivor banner — the signed delta plus, when a standing
+   *  title was crossed, its name (and the boon if a positive band was first reached this run). */
+  _karmaTag(milestone) {
+    const k = this.karma;
+    const signed = k > 0 ? `+${k}` : String(k);
+    let tag = `   ·   Karma ${signed}`;
+    if (milestone) {
+      tag += ` — ${milestone.title}`;
+      if (milestone.boon) tag += ` (+${milestone.boon}❤)`;
+    }
+    return tag;
   }
 
   /**
@@ -709,6 +767,7 @@ export class Game {
 
     let msg = '';
     let good = true;
+    let strangerKarma = null; // CP-K1: only the Stranger moves karma; set below if picked
     switch (npc.role.kind) {
       case 'medic':
         pl.applyEffect('HEART', 1, this); // +1 everywhere except rare boss +2 (Scott's rule)
@@ -741,7 +800,7 @@ export class Game {
             owned: c.owned,
             luck: c.luck,
             permLuck: c.permLuck,
-            curse: c.curse,
+            ...this._karmaInputs(), // ADR-0045
           });
         }
         pl.applyOfferCard({ id: item.id, tier: item.tier }, this); // registry path → addWeapon
@@ -754,9 +813,11 @@ export class Game {
         msg = `slips you ${CHOICE_ROOM.scavengerEchoes} Echoes`;
         break;
       case 'stranger': {
-        // the classic gamble, wearing a coat — same outcome table as helping a survivor
+        // the classic gamble, wearing a coat — same outcome table as helping a survivor,
+        // so it earns the same karma (choosing the Stranger IS choosing to help — ADR-0045)
         const outcome = resolveDecision(this.rng, 'HELP');
         this._applyDecisionOutcome(npc, pl, outcome);
+        strangerKarma = this.addKarma(outcome.karma); // CP-K1: fold the karma move into the banner
         msg = outcome.message;
         good = outcome.good;
         break;
@@ -774,8 +835,11 @@ export class Game {
     this.npcs = this.npcs.filter((n) => !n.role || n === npc);
     this._node().cleared = true; // the room is spent — re-entry is an empty breather
 
-    hud.banner(`${npc.role.name.toUpperCase()}: ${msg}`);
-    setTimeout(() => hud.hideBanner(), 1500);
+    const isStranger = npc.role.kind === 'stranger'; // only the Stranger moved karma → show its tag
+    hud.banner(
+      `${npc.role.name.toUpperCase()}: ${msg}${isStranger ? this._karmaTag(strangerKarma) : ''}`,
+    );
+    setTimeout(() => hud.hideBanner(), isStranger ? 1800 : 1500);
     this.juice.hitStop(0.08);
     audio.play(good ? 'good' : 'bad');
     this.refreshHud();
@@ -859,8 +923,13 @@ export class Game {
       return;
     }
     this._offerPlayer = pl;
-    // seeded (ADR-0013) → reproducible; bossTier guarantees a rare+ card on boss clears (ADR-0030)
-    const cards = generateOffer(this.rng, { ...pl.offerContext(), bossTier: this._offerBoss });
+    // seeded (ADR-0013) → reproducible; bossTier guarantees a rare+ card on boss clears (ADR-0030).
+    // ADR-0045: karma (a per-run, game-level dial) injects the curse/bonusLuck the drop curve reads.
+    const cards = generateOffer(this.rng, {
+      ...pl.offerContext(),
+      ...this._karmaInputs(),
+      bossTier: this._offerBoss,
+    });
     pl.noteOffered(cards.map((c) => c.id));
     let playerTag = null;
     if (this.coop) playerTag = pl === this.player ? 'P1' : 'P2';

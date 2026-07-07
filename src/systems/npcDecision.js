@@ -1,17 +1,19 @@
 // =====================================================================
 // npcDecision.js — what happens when you HELP or LEAVE a survivor (PURE).
 //
-// The whole point (the player's idea): you walk up to a survivor and choose to
-// help them or leave them. EITHER choice can turn out good OR bad — and you
-// don't know which until after you choose. It's random... but seeded, so it's
+// You walk up to a survivor and choose to help them or leave them. Seeded, so it's
 // reproducible and testable.
 //
-// Right now both choices have the same 50/50 odds (truly "you never know").
-// The probabilities live here so they're easy to tune later (e.g. make
-// helping slightly safer).
+// KARMA era (ADR-0045): the two choices are no longer symmetric coin flips.
+//   • HELP is the RISKY GOOD DEED: the immediate outcome leans BAD (KARMA.helpGoodChance
+//     < 0.5 — "it's a trap" is more likely now), but the deed earns +KARMA.helpGain either
+//     way. You brave the danger to build your standing (→ better luck on the drop curve).
+//   • LEAVE is SAFE but CORROSIVE: nothing happens to you right now, but abandoning them
+//     costs −KARMA.leaveLoss. The safe path slowly darkens your luck.
+// Each resolved outcome carries a `karma` delta the caller applies to the run.
 // =====================================================================
 
-import { PICKUPS } from '../config.js';
+import { PICKUPS, KARMA } from '../config.js';
 
 // Good things that can happen.
 // NOTE: the stat UPs add ONE upgrade stack and IGNORE magnitude since ADR-0022 (the
@@ -35,31 +37,40 @@ const BAD_EFFECTS = [
   { effect: 'SPAWN_ENEMIES', magnitude: 2, message: 'They lured monsters in!' },
 ];
 
-// Odds that a given choice turns out GOOD. (0.5 = a coin flip either way.)
-const GOOD_CHANCE = {
-  HELP: 0.5,
-  LEAVE: 0.5,
-};
-
 /**
  * Resolve a survivor interaction. PURE — give it a seeded rng and a choice.
+ *
+ * HELP rolls the (now risk-leaning) outcome table and earns +KARMA.helpGain regardless of how it
+ * turns out — the deed is what builds standing. LEAVE never rolls: it's safe, does nothing to you
+ * right now, and costs −KARMA.leaveLoss. The `karma` delta is applied by the caller to the run.
+ *
  * @param {{next:()=>number, chance:(p:number)=>boolean, pick:(a:any[])=>any}} rng
  * @param {'HELP'|'LEAVE'} choice
- * @returns {{good:boolean, effect:string, magnitude:number, message:string, choice:string}}
+ * @returns {{good:boolean, effect:string, magnitude:number, message:string, choice:string, karma:number}}
  */
 export function resolveDecision(rng, choice) {
-  const goodChance = GOOD_CHANCE[choice] ?? 0.5;
-  const good = rng.chance(goodChance);
-  const pool = good ? GOOD_EFFECTS : BAD_EFFECTS;
-  const picked = rng.pick(pool);
+  if (choice === 'LEAVE') {
+    // safe by definition — no combat roll; the only consequence is the karma cost
+    return {
+      good: false,
+      effect: 'NONE',
+      magnitude: 0,
+      message: 'You leave them to their fate.',
+      choice,
+      karma: -KARMA.leaveLoss,
+    };
+  }
+  const good = rng.chance(KARMA.helpGoodChance); // helping leans BAD now — that's the risk
+  const picked = rng.pick(good ? GOOD_EFFECTS : BAD_EFFECTS);
   return {
     good,
     effect: picked.effect,
     magnitude: picked.magnitude,
     message: picked.message,
     choice,
+    karma: KARMA.helpGain, // +karma whether it went well or was a trap — you tried
   };
 }
 
 // Exported for tests/tuning visibility.
-export const _internals = { GOOD_EFFECTS, BAD_EFFECTS, GOOD_CHANCE };
+export const _internals = { GOOD_EFFECTS, BAD_EFFECTS };

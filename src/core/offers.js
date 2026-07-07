@@ -175,10 +175,13 @@ function buildGates(ctx) {
   return {
     blocked,
     // CP4: rare+ tier-weight multiplier from luck⊖curse (in-run luck + permanent Fortune − curse).
+    // ADR-0045: `bonusLuck` (from positive KARMA) and `curse` (from negative KARMA) are injected by
+    // the game at the offer roll — this module stays agnostic to WHERE they come from.
     goodMul: goodDropMultiplier({
       inRunLuck: luck,
       permLuck: ctx.permLuck ?? 0,
       curse: ctx.curse ?? 0,
+      bonusLuck: ctx.bonusLuck ?? 0,
     }),
     weaponDecay: (ctx.ownedCount ?? 0) > 1 ? (OFFERS.extraWeaponDecay ?? 1) : 1,
     seenWeapons: ctx.seenWeapons ?? null, // id -> times offered (see-it-once decay)

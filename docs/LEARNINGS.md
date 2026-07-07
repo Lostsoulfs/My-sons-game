@@ -1279,3 +1279,41 @@ heatPerShot − coolRate·cooldown ≤ 0`, `dutyEnergy` returns 1 — i.e. no do
 - Determinism dimension came back fully clean (500-seed floorplan identity probe, re-entry
   stream-position proof, no Math.random in sim paths). 516 tests green post-fix; softlock,
   gunsmith preview, and tinkerer-cap all re-verified live.
+
+## 2026-07-06 — Karma (ADR-0045): turning the dormant curse into a moral dial
+
+- **A shipped-but-inert system is a gift for the NEXT feature.** CP4 shipped the full luck/curse
+  curve with `curse` pinned to 0. Phase 6b didn't need new math — just a live SOURCE. When the
+  owner reframed "curse elites" into a karma system, the entire economy half was already built and
+  tested; the CP was a signed dial + a splitter + wiring. Ship the math even when the source is
+  a phase away — it makes the source cheap.
+- **Extend a tested pure fn with a defaulted param, not a rewrite.** `goodDropMultiplier` gained a
+  `bonusLuck = 0` param; every existing caller and all of luck.test.js are bit-identical (default
+  0 changes nothing), and a regression test locks that. Positive karma rides the SAME asymptote as
+  Fortune, so it can never break the "never guarantees" contract.
+- **Keep the low-level term, rename the player-facing one.** luck.js still calls its downward input
+  `curse`; "karma" is the new player-facing signed concept that PRODUCES curse (negative) or
+  bonusLuck (positive). Not renaming the internal term is exactly what let the tested curve stay
+  untouched — the rename lived entirely at the game/UI boundary.
+- **Inject a run-level dial at the roll site, not in the per-player context.** Karma is
+  game-level; `Player.offerContext()` is per-player. Feeding karma there would have forced a
+  per-player split. Instead the game spreads `karmaDropInputs(this.karma)` into the offer +
+  gunsmith rolls — one source of truth, co-op just works (shared standing).
+- **Asymmetric choices need asymmetric tests.** The old npcDecision test asserted "BOTH choices
+  can turn out good AND bad." Karma broke that on purpose: Help rolls (leaning bad) + always
+  +karma; Leave never rolls (safe) + always −karma. The test now locks the NEW contract, incl. a
+  distribution check that helping's bad-rate really is > 0.5.
+- **A signed dial must use its whole range — adversarial review caught a dead zone.** First cut
+  had cursePerPoint 0.34, which floored the drop multiplier at karma −5; −5 through −12 (⅔ of the
+  negative dial) all produced identical drops while the pause menu kept ticking the number down —
+  invisible-but-confusing. Fix: size cursePerPoint (0.14) so the floor is only reached near the
+  −12 clamp, making every point live. Lesson: when a raw number is shown with no blurb, an inert
+  stretch of its range reads as a bug to the player even if the code is "correct."
+- **Verifiers grounded in the ADR separate defects from feel-opinions.** The review REJECTED
+  "helping at 1 heart is a 30% forced death" as a tuning opinion (the branch didn't introduce it;
+  the choice-rooms softlock fix is present and covers it) but CONFIRMED the dead-zone as a real,
+  player-observable economy nit. Determinism + wiring/co-op came back fully clean (LEAVE consuming
+  0 rng doesn't desync any seeded path; weightedChoice always draws a fixed count, so karma changes
+  WHICH card is picked, never HOW MANY rng draws).
+- 527 tests (2 new files, 1 rewritten); help→+karma / leave→−karma / risk / clamp / drop-shift /
+  pause row all live-verified. Stacked on the choice-rooms branch (the Stranger earns karma too).

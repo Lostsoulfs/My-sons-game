@@ -50,3 +50,4 @@ below).
 | [0042](0042-demon-companion.md)                           | Demon companion — permanent-buff inheritance, Echoes unlock (Broken Seal)  | Proposed |
 | [0043](0043-run-modes-story-endless.md)                   | Run modes — Story / Endless (post-win discovery, looping scaffold)         | Proposed |
 | [0044](0044-choice-rooms.md)                              | Choice rooms — the breather dead-end becomes a survivor pick               | Proposed |
+| [0045](0045-karma-morality-dial.md)                       | Karma — a signed morality dial (help + / leave −) feeding the drop curve   | Proposed |

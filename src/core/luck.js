@@ -42,11 +42,14 @@ export function luckBonus(inRunLuck = 0, permLuck = 0) {
  * so more luck softens each curse point but never fully cancels it (the design target: ≈−25% of the
  * good-drop bonus per curse point even at the luck ceiling).
  *
- * @param {{inRunLuck?: number, permLuck?: number, curse?: number}} [ctx]
+ * `bonusLuck` (ADR-0045: positive KARMA) is summed into the permanent-luck side, so it rides the
+ * same asymptotic curve as Fortune — more good karma helps, but can never push past the ceiling.
+ *
+ * @param {{inRunLuck?: number, permLuck?: number, curse?: number, bonusLuck?: number}} [ctx]
  * @returns {number} multiplier applied to rare+ tier weights
  */
-export function goodDropMultiplier({ inRunLuck = 0, permLuck = 0, curse = 0 } = {}) {
-  const lb = luckBonus(inRunLuck, permLuck);
+export function goodDropMultiplier({ inRunLuck = 0, permLuck = 0, curse = 0, bonusLuck = 0 } = {}) {
+  const lb = luckBonus(inRunLuck, permLuck + pos(bonusLuck));
   const offset = pos(curse) * LUCK.curseWeight * (1 - LUCK.curseLuckDamp * (lb / LUCK.max));
   const m = clamp(1 + (lb - offset), LUCK.goodMulMin, 1 + LUCK.max);
   // final belt: a non-finite dial (a bad Phase-6b curse source) must fall back to NEUTRAL, never a

@@ -1484,6 +1484,40 @@ export const LUCK = {
   curseLuckDamp: 0.5, // …damped by luck: offset = curse·curseWeight·(1 − curseLuckDamp·luckBonus/max)
   goodMulMin: 0.15, // floor on the rare+ multiplier under heavy curse (drops thin out, never vanish)
 };
+
+// KARMA (ADR-0045): the signed morality dial. Starts at 0 each run; HELPING survivors nudges it
+// up (a risky good deed — see npcDecision), LEAVING them nudges it down (safe, but it darkens you).
+// Karma feeds the SAME tested drop curve as luck/curse (core/luck.js): positive karma → bonus luck
+// (rides the D2 asymptote, never a guarantee), negative karma → curse (the tested downward pressure).
+// One point per decision is coarse on purpose; luckPerPoint/cursePerPoint scale it into the curve so
+// a single choice nudges rather than nukes the economy. (The 2nd negative source — dosing Echo for
+// temp power at a vendor — is the follow-on CP; this ships the dial + the "helping" source.)
+export const KARMA = {
+  max: 12, // karma clamps to ±this (about a dozen decisive acts swings you fully good/bad)
+  luckPerPoint: 0.6, // each +karma ≈ this many luck "stacks" of good-drop bias (through the D2 curve)
+  // each −karma ≈ this much curse. Sized so the WHOLE negative range is live: at baseline luck the
+  // drop floor (curse ≈ 1.7) is only reached near the −12 clamp, so every point from −1 to −12 dims
+  // drops meaningfully (no inert dead zone). Lower to soften the slide; raise to bite sooner.
+  cursePerPoint: 0.14,
+  helpGain: 1, // +karma for HELPING a survivor (the deed earns it even if the help goes bad)
+  leaveLoss: 1, // −karma for LEAVING one (the safe choice, but it costs your standing)
+  helpGoodChance: 0.4, // HELP's odds of a GOOD outcome — LOWER than the old 0.5: helping is riskier now
+  // CP-K1 (ADR-0045 v2, research-informed): STANDING TITLES. A hidden number feels invisible (Isaac's
+  // "dump stat" Luck); a title the world names makes the dial legible without a tooltip (Fallout's
+  // "Relevant Deeds"). Bands are matched by the FIRST whose `at` ≤ karma, scanned high→low. Positive
+  // bands (at ≥ 1) grant a one-time felt boon the first time you reach them this run (the good path
+  // must PAY — most players play good). Names lean Atomic-Age moral, not cutesy.
+  titles: [
+    { at: 9, name: 'Saint' },
+    { at: 5, name: 'Good Samaritan' },
+    { at: 1, name: 'Decent' },
+    { at: 0, name: 'Unmarked' },
+    { at: -4, name: 'Cold' },
+    { at: -8, name: 'Marked' },
+    { at: -12, name: 'Forsaken' },
+  ],
+  titleBoonHeal: 1, // +hearts granted once per positive title first reached this run (the felt reward)
+};
 // B9: weapon-mod amounts (applied to the player's guns via the existing BULLET behavior flags)
 export const WEAPON_MODS = {
   pierce: 1, // +enemies a shot passes through, per pick
